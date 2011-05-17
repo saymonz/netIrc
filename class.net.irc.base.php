@@ -75,7 +75,7 @@ class netIrc_Base {
 	#		HANDLERS FUNCTIONS		#
 	#################################
 	
-	public function registerHandler($type,$name,$callback)
+	public function registerHandler($type,$name,$callback,$regex = null)
 	{
 		if (is_callable($callback))
 		{
@@ -84,11 +84,27 @@ class netIrc_Base {
 				$this->eventHandlers[$type] = array();
 			}
 			
-			$this->eventHandlers[$type][$name] = $callback;
-			$this->__debug('|| INTERNAL: Adding handler for '.$type);
+			$this->eventHandlers[$type][$name] = array();
+			$this->eventHandlers[$type][$name]['regex'] = $regex;
+			$this->eventHandlers[$type][$name]['callback'] = $callback;
+			
+			$this->__debug('|| INTERNAL: Adding handler '.$name.' for '.$type);
 			return true;
 		} else {
 			$this->__debug('|| INTERNAL: WARNING: invalid callback '.$name.' for '.$type);
+			return false;
+		}
+	}
+	
+	public function unregisterHandler($type,$name)
+	{
+		if (isset($this->eventHandlers[$type]) && isset($this->eventHandlers[$type][$name]))
+		{
+			unset($this->eventHandlers[$type][$name]);
+			$this->__debug('|| INTERNAL: Deleting handler '.$name.' for '.$type);
+			return true;
+		} else
+		{
 			return false;
 		}
 	}
@@ -105,10 +121,13 @@ class netIrc_Base {
 		{
 			foreach ($this->eventHandlers[$type] as $k => &$v)
 			{
-				if (is_callable($v))
+				if (is_callable($v['callback']))
 				{
-					$this->__debug('|| INTERNAL: Calling external handler '.$k.' for '.$type);
-					call_user_func($v,$data);
+					if (is_null($v['regex']) || preg_match($v['regex'],$data->message))
+					{
+						$this->__debug('|| INTERNAL: Calling external handler '.$k.' for '.$type);
+						call_user_func($v['callback'],$this,$data);
+					}
 				} else {
 					$this->__debug('|| INTERNAL: WARNING: invalid callback '.$k.' for '.$type);
 				}
@@ -413,6 +432,13 @@ class netIrc_Base {
 		if ($pos !== false)
 		{
 			return substr($in,$pos+1);
+		} else { return false; }
+	}
+	
+	public function ircIsOn($nick,$channel) {
+		if (isset($this->ircChannels[$channel]) && isset($this->ircChannels[$channel]->users[$nick]))
+		{
+			return $this->ircChannels[$channel]->users[$nick];
 		} else { return false; }
 	}
 	
