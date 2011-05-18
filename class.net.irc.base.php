@@ -123,7 +123,7 @@ class netIrc_Base {
 			{
 				if (is_callable($v['callback']))
 				{
-					if (is_null($v['regex']) || preg_match($v['regex'],$data->message))
+					if (is_null($v['regex']) || !isset($data->message_stripped) || preg_match($v['regex'],$data->message_stripped))
 					{
 						$this->__debug('|| INTERNAL: Calling external handler '.$k.' for '.$type);
 						call_user_func($v['callback'],$this,$data);
@@ -137,7 +137,7 @@ class netIrc_Base {
 	}
 	
 	#################################
-	#		PUBLIC IRC COMMANDS		#
+	#			Getters				#
 	#################################
 	
 	public function getNick() { return $this->ircNick; }
@@ -148,11 +148,6 @@ class netIrc_Base {
 		if ($channel == null) { return $this->ircChannels; }
 		if (isset($this->ircChannels[$channel])) { return $this->ircChannels[$channel]; }
 		return false;
-	}
-	
-	public function matchMask($mask,$reg)
-	{
-		return preg_match('/'.str_replace('\*','(.+)',preg_quote($reg,'/')).'/',$mask);
 	}
 	
 	public function deconnect($msg = null) {
@@ -234,7 +229,7 @@ class netIrc_Base {
 		$res->raw = $in;
 		
 		$match = array(); 
-		if (preg_match('#^:(.+):(.*)$#U',$in,$match))
+		if (preg_match('#^:(.+) :(.*)$#U',$in,$match))
 		{
 			$match[1] = explode(' ',$match[1]);
 			$match[1] = $this->__arrayTrimmer($match[1]);
@@ -251,11 +246,17 @@ class netIrc_Base {
 			$res->message = $match[2];
 			$res->message_xt = explode(' ',$res->message);
 			
+			$res->message_stripped = $this->ircStripper($match[2]);
+			$res->message_stripped_xt = explode(' ',$res->message_stripped);
+			
 			$match = array();
 			if (preg_match('#^[\x01](.+)[\x01]$#',$res->message,$match))
 			{
 				$res->message = $match[1];
 				$res->message_xt = explode(' ',$res->message);
+				
+				$res->message_stripped = $this->ircStripper($match[1]);
+				$res->message_stripped_xt = explode(' ',$res->message_stripped);
 				
 				if ($res->command === 'PRIVMSG')
 				{
@@ -384,20 +385,28 @@ class netIrc_Base {
 		
 		if (!$transform)
 		{
-			return preg_match('#(.+)!(.+)@(.+)#',$in);
+			return preg_match('#^(.+)!(.+)@(.+)$#',$in);
 		}
 		$m = array();
-		if (preg_match('#(.+)!(.+)@(.+)#',$in,$m))
+		if (preg_match('#^(.+)!(.+)@(.+)$#',$in,$m))
 		{
 			$res = new stdClass;
 			$res->nick = $m[1];
 			$res->ident = $m[2];
 			$res->host = $m[3];
 			$res->mask = $m[0];
-		} else {
+		} else
+		{
 			$res = $in;
 		}
 		return $res;
+	}
+	
+	public function ircIsOn($nick,$channel) {
+		if (isset($this->ircChannels[$channel]) && isset($this->ircChannels[$channel]->users[$nick]))
+		{
+			return $this->ircChannels[$channel]->users[$nick];
+		} else { return false; }
 	}
 	
 	public function ircMask2Nick($in)
@@ -435,15 +444,13 @@ class netIrc_Base {
 		} else { return false; }
 	}
 	
-	public function ircIsOn($nick,$channel) {
-		if (isset($this->ircChannels[$channel]) && isset($this->ircChannels[$channel]->users[$nick]))
-		{
-			return $this->ircChannels[$channel]->users[$nick];
-		} else { return false; }
+	public function matchMask($mask,$reg)
+	{
+		return preg_match('/'.str_replace('\*','(.+)',preg_quote($reg,'/')).'/',$mask);
 	}
 	
+	public function ircStripper($input) { return preg_replace("#\x16|\x1d|\x1f|\x02|\x03(?:\d{1,2}(?:,\d{1,2})?)?#",'',$input); }
 	
-	protected function __strIrcStripper($input) { return preg_replace("#\x16|\x1d|\x1f|\x02|\x03(?:\d{1,2}(?:,\d{1,2})?)?#",'',$input); }
 	protected function __arrayTrimmer($in)
 	{
 		$res = array();

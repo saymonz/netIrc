@@ -39,6 +39,8 @@ class netIrc_Line { // Dummy class for each IRC line
 	public $args = array();
 	public $message;
 	public $message_xt = array();
+	public $message_stripped;
+	public $message_stripped_xt = array();
 	public $raw;
 }
 
