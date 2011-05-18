@@ -36,6 +36,7 @@ class netIrc_Line {
 	public $source;
 	public $command;
 	public $target;
+	public $target_ischannel = false;
 	public $args = array();
 	public $message;
 	public $message_xt = array();
@@ -45,6 +46,7 @@ class netIrc_Line {
 }
 
 class netIrc_Channel {
+	public $name;
 	public $topic;
 	public $topic_by;
 	public $topic_time;

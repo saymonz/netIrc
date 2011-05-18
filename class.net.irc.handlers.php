@@ -17,7 +17,7 @@
  */
  
 class netIrc_Handlers extends netIrc_Commands {
-	protected function __handle005($data)
+	protected function __handle005($Line)
 	{
 		/*
 		[0] => CMDS=KNOCK,MAP,DCCALLOW,USERIP
@@ -53,7 +53,7 @@ class netIrc_Handlers extends netIrc_Commands {
 		[0] => INVEX
 		[1] => are supported by this server
 		*/
-		foreach ($data->args as $arg)
+		foreach ($Line->args as $arg)
 		{
 			if (strpos($arg,'=')) {
 				$arg = explode('=',$arg);
@@ -70,7 +70,17 @@ class netIrc_Handlers extends netIrc_Commands {
 							if (!$prefix || !$mode) { break; }
 							$this->ircNickPrefixes[$prefix] = $mode;
 						}
-						break;
+					break;
+					
+					case 'CHANLIMIT':
+						$_prefixes = split(',',$arg[1]);
+						$prefixes = '';
+						foreach ($_prefixes as $p)
+						{
+							$prefixes = substr($p,0,strpos($p,':'));
+						}
+						$this->ircChannelPrefixes = $prefixes;
+					break;
 					
 					case 'CHANMODES':
 						/*
@@ -89,7 +99,7 @@ class netIrc_Handlers extends netIrc_Commands {
 						*/
 						$this->ircChannelModes = explode(',',$arg[1]);
 						
-						break;
+					break;
 				}
 			} else
 			{
@@ -107,176 +117,183 @@ class netIrc_Handlers extends netIrc_Commands {
 		}
 	}
 	
-	protected function __handle311($data)
+	protected function __handle311($Line)
 	{
 		foreach ($this->ircChannels as &$channel)
 		{
-			if (isset($channel->users[$data->args[0]]))
+			if (isset($channel->users[$Line->args[0]]))
 			{
-				$channel->users[$data->args[0]]->nick = $data->args[0];
-				$channel->users[$data->args[0]]->ident = $data->args[1];
-				$channel->users[$data->args[0]]->host = $data->args[2];
-				$channel->users[$data->args[0]]->mask = $data->args[0].'!'.$data->args[1].'@'.$data->args[2];
-				$channel->users[$data->args[0]]->realname = implode(' ',array_slice($data->message_xt,1));
+				$channel->users[$Line->args[0]]->nick = $Line->args[0];
+				$channel->users[$Line->args[0]]->ident = $Line->args[1];
+				$channel->users[$Line->args[0]]->host = $Line->args[2];
+				$channel->users[$Line->args[0]]->mask = $Line->args[0].'!'.$Line->args[1].'@'.$Line->args[2];
+				$channel->users[$Line->args[0]]->realname = implode(' ',array_slice($Line->message_xt,1));
 			}
 		}
 	}
 	
-	protected function __handle324($data)
+	protected function __handle324($Line)
 	{
 		// Let's get tricky...
-		//$this->ircChannels[$data->args[0]]->modes = substr($data->args[1],1);
-		$data->target = array_shift($data->args);
-		$this->__handleMODE($data);
+		//$this->ircChannels[$Line->args[0]]->modes = substr($Line->args[1],1);
+		$Line->target = array_shift($Line->args);
+		$this->__handleMODE($Line);
 	}
 	
-	protected function __handle332($data)
+	protected function __handle332($Line)
 	{
-		if (isset($this->ircChannels[$data->args[0]]))
-		{
-			$this->ircChannels[$data->args[0]]->topic = $data->message;
-		}
+		$Channel = $this->ircGetChannel($Line->args[0]);
+		$Channel->topic = $Line->message;
 	}
 	
-	protected function __handle333($data)
+	protected function __handle333($Line)
 	{
-		$this->ircChannels[$data->args[0]]->topic_by = $data->args[1];
-		$this->ircChannels[$data->args[0]]->topic_time = $data->args[2];
+		$Channel = $this->ircGetChannel($Line->args[0]);
+		$Channel->topic_by = $Line->args[1];
+		$Channel->topic_time = $Line->args[2];
 	}
 	
-	protected function __handle346($data)
+	protected function __handle346($Line)
 	{
-		$data->args[1] = strtolower($data->args[1]);
-		if (!isset($this->ircChannels[$data->args[0]]->lists['I']))
+		$Channel = $this->ircGetChannel($Line->args[0]);
+		if (!isset($Channel->lists['I']))
 		{
-			$this->ircChannels[$data->args[0]]->lists['I'] = array();
-		}
-
-		if (!isset($this->ircChannels[$data->args[0]]->lists['I'][$data->args[1]]))
-		{
-			$this->ircChannels[$data->args[0]]->lists['I'][$data->args[1]] = new stdClass;
-			$this->ircChannels[$data->args[0]]->lists['I'][$data->args[1]]->by = $data->args[2];
-			$this->ircChannels[$data->args[0]]->lists['I'][$data->args[1]]->time = $data->args[3];
-		}
-	}
-	
-	protected function __handle348($data)
-	{
-		$data->args[1] = strtolower($data->args[1]);
-		if (!isset($this->ircChannels[$data->args[0]]->lists['e']))
-		{
-			$this->ircChannels[$data->args[0]]->lists['e'] = array();
+			$Channel->lists['I'] = array();
 		}
 
-		if (!isset($this->ircChannels[$data->args[0]]->lists['b'][$data->args[1]]))
+		if (!isset($this->ircChannels[$Line->args[0]]->lists['I'][$Line->args[1]]))
 		{
-			$this->ircChannels[$data->args[0]]->lists['e'][$data->args[1]] = new stdClass;
-			$this->ircChannels[$data->args[0]]->lists['e'][$data->args[1]]->by = $data->args[2];
-			$this->ircChannels[$data->args[0]]->lists['e'][$data->args[1]]->time = $data->args[3];
+			$Channel->lists['I'][$Line->args[1]] = new stdClass;
+			$Channel->lists['I'][$Line->args[1]]->by = $Line->args[2];
+			$Channel->lists['I'][$Line->args[1]]->time = $Line->args[3];
 		}
 	}
 	
-	protected function __handle352($data)
+	protected function __handle348($Line)
 	{
-		$user = $this->ircGetUser($data->args[4]);
+		$Channel = $this->ircGetChannel($Line->args[0]);
+		if (!isset($Channel->lists['e']))
+		{
+			$Channel->lists['e'] = array();
+		}
+
+		if (!isset($this->ircChannels[$Line->args[0]]->lists['I'][$Line->args[1]]))
+		{
+			$Channel->lists['e'][$Line->args[1]] = new stdClass;
+			$Channel->lists['e'][$Line->args[1]]->by = $Line->args[2];
+			$Channel->lists['e'][$Line->args[1]]->time = $Line->args[3];
+		}
+	}
+	
+	protected function __handle352($Line)
+	{
+		$user = $this->ircGetUser($Line->args[4]);
 		if ($user === false) { return; }
 		
-		$user->ident = $data->args[1];
-		$user->host = $data->args[2];
-		$user->nick = $data->args[4];
-		$user->realname = implode(' ',array_slice($data->message_xt,1));
+		$user->ident = $Line->args[1];
+		$user->host = $Line->args[2];
+		$user->nick = $Line->args[4];
+		$user->realname = implode(' ',array_slice($Line->message_xt,1));
 		
 		$user->mask = $user->nick.'!'.$user->ident.'@'.$user->host;
 	}
 	
-	protected function __handle353($data)
+	protected function __handle353($Line)
 	{
-		$users = $data->message_xt;
-		$channel = $data->args[1];
-		foreach ($users as $user)
+		$Channel = $this->ircGetChannel($Line->args[1]);
+		if ($Channel === false) { return; }
+		
+		foreach ($Line->message_xt as $_user)
 		{
-			$_user = str_split($user);
+			$_user_xt = str_split($_user);
 			$_modes = '';
-			$nick = '';
-			foreach ($_user as $pos => $char)
+			$_nick = '';
+			foreach ($_user_xt as $pos => $char)
 			{
 				if (isset($this->ircNickPrefixes[$char]))
 				{
 					$_modes .= $this->ircNickPrefixes[$char];
 				} else {
-					$nick = implode(array_slice($_user,$pos));
+					$_nick = implode(array_slice($_user_xt,$pos));
 					break;
 				}
 			}
 			
-			$userObj = $this->ircGetUser($nick);
-			$channelUser = $this->ircGetChannelUser($channel,$nick);
-			if ($userObj === false) { $this->ircUsers[] = $userObj = new netIrc_User; }
-			if ($channelUser === false) { $this->ircChannels[$channel]->users[] = $channelUser = new netIrc_ChannelUser; };
-			$userObj->nick = $nick;
-			$channelUser->user = $userObj;
-			$channelUser->modes = $_modes;
-			$userObj->channels[$channel] = $this->ircChannels[$channel];
+			$User = $this->ircGetUser($_nick);			
+			$ChannelUser = $this->ircGetChannelUser($Line->args[1],$_nick);
+			
+			if ($User === false) {
+				$this->ircUsers[] = $User = new netIrc_User;
+				$User->nick = $_nick;
+				$User->channels[] = $Channel;
+			}
+			
+			if ($ChannelUser === false)
+			{
+				$Channel->users[] = $ChannelUser = new netIrc_ChannelUser;
+				$ChannelUser->modes = $_modes;
+				$ChannelUser->user = $User;
+				
+			}
 		}
 	}
 	
-	protected function __handle366($data)
+	protected function __handle366($Line)
 	{
-		$this->sendRaw('WHO '.$data->args[0],1);
+		$this->sendRaw('WHO '.$Line->args[0],1);
 	}
 	
-	protected function __handle367($data)
+	protected function __handle367($Line)
 	{
-		$data->args[1] = strtolower($data->args[1]);
-		if (!isset($this->ircChannels[$data->args[0]]->lists['b']))
+		$Channel = $this->ircGetChannel($Line->args[0]);
+		if (!isset($Channel->lists['b'])) { $Channel->lists['b'] = array(); }
+		
+		if (!isset($Channel->lists['b'][$Line->args[1]]))
 		{
-			$this->ircChannels[$data->args[0]]->lists['b'] = array();
+			$Channel->lists['b'][$Line->args[1]] = new stdClass;
+			$Channel->lists['b'][$Line->args[1]]->by = $Line->args[2];
+			$Channel->lists['b'][$Line->args[1]]->time = $Line->args[3];
 		}
 		
-		if (!isset($this->ircChannels[$data->args[0]]->lists['b'][$data->args[1]]))
-		{
-			$this->ircChannels[$data->args[0]]->lists['b'][$data->args[1]] = new stdClass;
-			$this->ircChannels[$data->args[0]]->lists['b'][$data->args[1]]->by = $data->args[2];
-			$this->ircChannels[$data->args[0]]->lists['b'][$data->args[1]]->time = $data->args[3];
-		}
-		
 	}
 	
-	protected function __handle372($data) // MOTD lines
+	protected function __handle372($Line) // MOTD lines
 	{
-		$this->ircMotd[] = $data->message;
+		$this->ircMotd[] = $Line->message;
 	}
 	
-	protected function __handle375($data) // MOTD start
+	protected function __handle375($Line) // MOTD start
 	{
 		$this->ircMotd = array();
 	}
 	
-	protected function __handle376($data)
+	protected function __handle376($Line)
 	{
 		$this->ircLoggedIn = true;
 		$this->netSocket->setBlocking(0);
 	}
 	
-	protected function __handle386($data)
+	protected function __handle386($Line)
 	{
-		if (!isset($this->ircChannels->users[$data->args[1]])) { return; }
-		if (strpos($this->ircChannels->users[$data->args[1]]->modes,'q') === false)
+		$ChannelUser = $this->ircGetChannelUser($Line->args[0],$Line->args[1]);
+		if ($ChannelUser === false) { return; }
+		if (strpos($ChannelUser->modes,'q') === false)
 		{
-			$this->ircChannels->users[$data->args[1]]->modes .= 'q';
+			$ChannelUser->modes .= 'q';
 		}
 	}
 	
-	protected function __handle388($data)
+	protected function __handle388($Line)
 	{
-		if (!isset($this->ircChannels->users[$data->args[1]])) { return; }
-		if (strpos($this->ircChannels->users[$data->args[1]]->modes,'a') === false)
+		$ChannelUser = $this->ircGetChannelUser($Line->args[0],$Line->args[1]);
+		if ($ChannelUser === false) { return; }
+		if (strpos($ChannelUser->modes,'a') === false)
 		{
-			$this->ircChannels->users[$data->args[1]]->modes .= 'a';
+			$ChannelUser->modes .= 'a';
 		}
 	}
 	
-	protected function __handle433($data)
+	protected function __handle433($Line)
 	{
 		if (!$this->ircLoggedIn)
 		{
@@ -285,65 +302,70 @@ class netIrc_Handlers extends netIrc_Commands {
 		}
 	}
 	
-	protected function __handleCTCPREQ($data)
+	protected function __handleCTCPREQ($Line)
 	{
-		if ($data->message_xt[0] == 'VERSION')
+		if ($Line->message_xt[0] == 'VERSION')
 		{
-			$this->sendCtcpRep($data->source->nick,'VERSION PHP NetIrc by Saymonz');
+			$this->sendCtcpRep($Line->source->nick,'VERSION PHP NetIrc by Saymonz');
 		}
-		if ($data->message_xt[0] == 'PING')
+		if ($Line->message_xt[0] == 'PING')
 		{
-			if (isset($data->message_xt[1])) 
+			if (isset($Line->message_xt[1])) 
 			{
-				$this->sendCtcpRep($data->source->nick,'PING '.$data->message_xt[1]);
+				$this->sendCtcpRep($Line->source->nick,'PING '.$Line->message_xt[1]);
 			} else {
-				$this->sendCtcpRep($data->source->nick,'PING');
+				$this->sendCtcpRep($Line->source->nick,'PING');
 			}
 		}
 	}
 	
-	protected function __handleERROR($data)
+	protected function __handleERROR($Line)
 	{
 		if ($this->ircReconnect) { $this->connect(); $this->listen(); exit(); }
 	}
 	
-	protected function __handleJOIN($data)
+	protected function __handleJOIN($Line)
 	{
-		if ($data->source->nick == $this->ircNick)
+		if ($Line->source->nick == $this->ircNick)
 		{
-			$this->ircChannels[$data->message] = new netIrc_Channel;
+			$Channel = $this->ircChannels[] = new netIrc_Channel;
+			$Channel->name = $Line->message;
 			
-			$this->sendRaw('MODE '.$data->message,1);
+			
+			$this->sendRaw('MODE '.$Channel->name,1);
 			$modes = str_split($this->ircChannelModes[0]);
-			foreach ($modes as $m) { $this->sendRaw('MODE '.$data->message.' +'.$m,1); }
+			foreach ($modes as $m) { $this->sendRaw('MODE '.$Channel->name.' +'.$m,1); }
 		}
 		
-		$user = $this->ircGetUser($data->source->nick);
-		if ($user === false) { $this->ircUsers[] = $user = new netIrc_User; }
-		$user->nick = $data->source->nick;
-		$user->ident = $data->source->ident;
-		$user->host = $data->source->host;
-		$user->mask = $data->source->mask;
-		$user->channels[$data->message] = $this->ircChannels[$data->message];
+		$User = $this->ircGetUser($Line->source->nick);
+		if ($User === false) { $this->ircUsers[] = $User = new netIrc_User; }
+		if (!isset($Channel)) { $Channel = $this->ircGetChannel($Line->message); }
 		
-		$this->ircChannels[$data->message]->users[] = $channelUser = new netIrc_ChannelUser;
-		$channelUser->user = $user;
+		$User->nick = $Line->source->nick;
+		$User->ident = $Line->source->ident;
+		$User->host = $Line->source->host;
+		$User->mask = $Line->source->mask;
+		$User->channels[] = $Channel;
+		
+		$Channel->users[] = $ChannelUser = new netIrc_ChannelUser;
+		$ChannelUser->user = $User;
 	}
 	
-	protected function __handleKICK($data)
+	protected function __handleKICK($Line)
 	{
-		if ($data->args[0] == $this->ircNick)
+		if ($Line->args[0] == $this->ircNick)
 		{
-			unset($this->ircChannels[$data->target]);
-			$this->sendJoin($data->target);
-		} else { unset($this->ircChannels[$data->target]->user[$data->args[0]]); }
+			unset($this->ircChannels[$Line->target]);
+			$this->sendJoin($Line->target);
+		} else { unset($this->ircChannels[$Line->target]->user[$Line->args[0]]); }
 	}
 	
-	protected function __handleMODE($data)
+	protected function __handleMODE($Line)
 	{
-		if (substr($data->target,0,1) == '#') # FIXME
+		if ($Line->target_ischannel)
 		{
-			$modes = str_split(array_shift($data->args));
+			$Channel = $this->ircGetChannel($Line->target);
+			$modes = str_split(array_shift($Line->args));
 			foreach ($modes as $mode)
 			{
 				switch ($mode)
@@ -359,8 +381,8 @@ class netIrc_Handlers extends netIrc_Commands {
 					default:
 						if (in_array($mode,$this->ircNickPrefixes)) // mode utilisateur préfixé
 						{
-							$nick = array_shift($data->args);
-							$channelUser = $this->ircGetChannelUser($data->target,$nick);
+							$nick = array_shift($Line->args);
+							$channelUser = $this->ircGetChannelUser($Line->target,$nick);
 							$um = $channelUser->modes;
 							
 							if ($m)
@@ -386,24 +408,24 @@ class netIrc_Handlers extends netIrc_Commands {
 							switch ($k)
 							{
 								case 0:
-									$m_target = array_shift($data->args);
+									$m_target = array_shift($Line->args);
 									if ($this->ircIsMask($m_target)) {
 										$m_target = strtolower($m_target);
 										if ($m)
 										{
-											$this->ircChannels[$data->target]->lists[$mode][$m_target] = new stdClass;
-											$this->ircChannels[$data->target]->lists[$mode][$m_target]->by = $data->source->nick;
-											$this->ircChannels[$data->target]->lists[$mode][$m_target]->time = time();
+											$Channel->lists[$mode][$m_target] = new stdClass;
+											$Channel->lists[$mode][$m_target]->by = $Line->source->nick;
+											$Channel->lists[$mode][$m_target]->time = time();
 										} else
 										{
-											if (isset($this->ircChannels[$data->target]->lists[$mode][$m_target]))
+											if (isset($Channel->lists[$mode][$m_target]))
 											{
-												unset($this->ircChannels[$data->target]->lists[$mode][$m_target]);
+												unset($Channel->lists[$mode][$m_target]);
 											}
 										}
 									} else
 									{
-										$channelUser = $this->ircGetChannelUser($data->target,$m_target);
+										$channelUser = $this->ircGetChannelUser($Line->target,$m_target);
 										$um = $channelUser->modes;
 										
 										if ($m)
@@ -419,35 +441,35 @@ class netIrc_Handlers extends netIrc_Commands {
 									
 									
 								case 1:
-									$arg = array_shift($data->args); // Cat. B, always shift a parameter
+									$arg = array_shift($Line->args); // Cat. B, always shift a parameter
 									
 									if ($m)
 									{
-										$this->ircChannels[$data->target]->modes[$mode] = $arg;
+										$Channel->modes[$mode] = $arg;
 									} else
 									{
-										unset($this->ircChannels[$data->target]->modes[$mode]);
+										unset($Channel->modes[$mode]);
 									}
 								break;
 								
 								case 2:
 									if ($m)
 									{
-										$arg = array_shift($data->args);
-										$this->ircChannels[$data->target]->modes[$mode] = $arg;
+										$arg = array_shift($Line->args);
+										$Channel->modes[$mode] = $arg;
 									} else
 									{
-										unset($this->ircChannels[$data->target]->modes[$mode]);
+										unset($Channel->modes[$mode]);
 									}
 								break;
 								
 								case 3:
 									if ($m)
 									{
-										$this->ircChannels[$data->target]->modes[$mode] = true;
+										$Channel->modes[$mode] = true;
 									} else
 									{
-										unset($this->ircChannels[$data->target]->modes[$mode]);
+										unset($Channel->modes[$mode]);
 									}
 								break;
 								
@@ -468,22 +490,22 @@ class netIrc_Handlers extends netIrc_Commands {
 		}
 	}
 	
-	protected function __handleNICK($data)
+	protected function __handleNICK($Line)
 	{
-		print_r($data);
-		if ($data->source->nick == $this->ircNick) { $this->ircNick = $data->message; } // Own nick change
+		print_r($Line);
+		if ($Line->source->nick == $this->ircNick) { $this->ircNick = $Line->message; } // Own nick change
 		foreach ($this->ircChannels as &$channel)
 		{
-			if (isset($channel->users[$data->source->nick]))
+			if (isset($channel->users[$Line->source->nick]))
 			{
-				$channel->users[$data->source->nick]->nick = $data->message;
-				$channel->users[$data->message] = $channel->users[$data->source->nick];
-				unset($channel->users[$data->source->nick]);
+				$channel->users[$Line->source->nick]->nick = $Line->message;
+				$channel->users[$Line->message] = $channel->users[$Line->source->nick];
+				unset($channel->users[$Line->source->nick]);
 			}
 		}
 	}
 	
-	protected function __handleNOTICEAUTH($data)
+	protected function __handleNOTICEAUTH($Line)
 	{
 		if (!$this->ircLoginSent)
 		{
@@ -493,37 +515,38 @@ class netIrc_Handlers extends netIrc_Commands {
 		}
 	}
 	
-	protected function __handlePART($data)
+	protected function __handlePART($Line)
 	{
-		if ($data->source->nick == $this->ircNick)
+		if ($Line->source->nick == $this->ircNick)
 		{
-			unset($this->ircChannels[$data->target]);
+			unset($this->ircChannels[$Line->target]);
 		} else {
-			unset($this->ircChannels[$data->target]->users[$data->source->nick]);
+			unset($this->ircChannels[$Line->target]->users[$Line->source->nick]);
 		}
 	}
 	
-	protected function __handlePING($data)
+	protected function __handlePING($Line)
 	{
-		$this->__send('PONG :'.$data->message_xt[0],0);
+		$this->__send('PONG :'.$Line->message_xt[0],0);
 	}
 	
-	protected function __handleQUIT($data)
+	protected function __handleQUIT($Line)
 	{
 		foreach ($this->ircChannels as &$channel)
 		{
-			if (isset($channel->users[$data->source->nick]))
+			if (isset($channel->users[$Line->source->nick]))
 			{
-				unset($channel->users[$data->source->nick]);
+				unset($channel->users[$Line->source->nick]);
 			}
 		}
 	}
 	
-	protected function __handleTOPIC($data)
+	protected function __handleTOPIC($Line)
 	{
-		$this->ircChannels[$data->target]->topic_by = $data->source->nick;
-		$this->ircChannels[$data->target]->topic = $data->args[0];
-		$this->ircChannels[$data->target]->topic_time = time();
+		$Channel = $this->ircGetChannel($Line->target);
+		$Channel->topic_by = $Line->source->nick;
+		$Channel->topic = $Line->args[0];
+		$Channel->topic_time = time();
 	}
 	
 

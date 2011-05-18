@@ -28,6 +28,7 @@ class netIrc_Base {
 	protected $ircIdent = null;				# Ident used
 	protected $ircRealname = null;			# Realname used
 	protected $ircChannels = array();			# Channels joined
+	protected $ircChannelPrefixes = null;
 	protected $ircUsers = array();
 	protected $ircMotd = null;				# Server MOTD
 	protected $ircLoggedIn = false;			# Connected or not
@@ -110,12 +111,12 @@ class netIrc_Base {
 		}
 	}
 	
-	protected function __callHandler($type,$data)
+	protected function __callHandler($type,$Line)
 	{
 		if (is_callable(array($this,'__handle'.$type)))
 		{
 			$this->__debug('|| INTERNAL: Calling internal handler for '.$type);
-			call_user_func(array($this,'__handle'.$type),$data);
+			call_user_func(array($this,'__handle'.$type),$Line);
 		}
 		
 		if (isset($this->eventHandlers[$type]))
@@ -124,10 +125,10 @@ class netIrc_Base {
 			{
 				if (is_callable($v['callback']))
 				{
-					if (is_null($v['regex']) || !isset($data->message_stripped) || preg_match($v['regex'],$data->message_stripped))
+					if (is_null($v['regex']) || !isset($Line->message_stripped) || preg_match($v['regex'],$Line->message_stripped))
 					{
 						$this->__debug('|| INTERNAL: Calling external handler '.$k.' for '.$type);
-						call_user_func($v['callback'],$this,$data);
+						call_user_func($v['callback'],$this,$Line);
 					}
 				} else {
 					$this->__debug('|| INTERNAL: WARNING: invalid callback '.$k.' for '.$type);
@@ -212,9 +213,9 @@ class netIrc_Base {
 		return true;
 	}
 	
-	protected function __rawReceive(&$data)
+	protected function __rawReceive(&$Line)
 	{
-		$parsed = $this->__ircParser($data);
+		$parsed = $this->__ircParser($Line);
 		if (!$parsed) { return false; }
 		$this->__debug('<< '.$parsed->raw);
 		$this->__callHandler($parsed->command,$parsed);
@@ -309,7 +310,13 @@ class netIrc_Base {
 		
 		if ($res->command === 'NOTICE' && $res->target === 'AUTH')
 		{
+			$res->target = $this->ircNick;
 			$res->command = 'NOTICEAUTH';
+		}
+		
+		if (strpos($this->ircChannelPrefixes,substr($res->target,0,1)) !== false)
+		{
+			$res->target_ischannel = true;
 		}
 		return $res;
 	}
@@ -318,10 +325,10 @@ class netIrc_Base {
 	#		SEND QUEUES FUNCS		#
 	#################################
 	
-	protected function __send($data,$priority = 3)
+	protected function __send($Line,$priority = 3)
 	{
-		$data = trim(text::toUTF8($data));
-		if ($data == null) { return; }
+		$Line = trim(text::toUTF8($Line));
+		if ($Line == null) { return; }
 		
 		if (!is_numeric($priority) || $priority < 0 || $priority > 5)
 		{
@@ -330,10 +337,10 @@ class netIrc_Base {
 		
 		if ($priority == 0)
 		{
-			//$this->__debug('|| INTERNAL: Sending '.$this->strBytesCounter($data."\n").'bytes ('.strlen($data."\n").'chars)');
-			$this->__debug('>> '.$data);
-			$this->netSocket->write($data."\n");
-		} else { array_push($this->ircBuffers[$priority],$data); }
+			//$this->__debug('|| INTERNAL: Sending '.$this->strBytesCounter($Line."\n").'bytes ('.strlen($Line."\n").'chars)');
+			$this->__debug('>> '.$Line);
+			$this->netSocket->write($Line."\n");
+		} else { array_push($this->ircBuffers[$priority],$Line); }
 	}
 	
 	protected function __checkBuffer()
@@ -341,8 +348,8 @@ class netIrc_Base {
 		if (!$this->ircLoggedIn) { return false; }
 		foreach ($this->ircBuffers as &$buffer)
 		{
-			$data = array_shift($buffer);
-			if ($data !== null) { $this->__send($data,0); return true; }
+			$Line = array_shift($buffer);
+			if ($Line !== null) { $this->__send($Line,0); return true; }
 		}
 		return false;
 	}
@@ -380,6 +387,17 @@ class netIrc_Base {
 	# HELPERS #
 	###########
 	
+	public function ircGetChannel($channel)
+	{
+		foreach ($this->ircChannels as $v) {
+			if ($v->name == $channel)
+			{
+				return $v;
+			}
+		}
+		return false;
+	}
+	
 	public function ircGetUser($nick)
 	{
 		foreach ($this->ircUsers as $v) {
@@ -391,14 +409,14 @@ class netIrc_Base {
 		return false;
 	}
 	
-	public function ircGetChannelUser($channel,$nick)
+	public function ircGetChannelUser($_channel,$_user)
 	{
-		if (isset($this->ircChannels[$channel]))
-		{
-			foreach ($this->ircChannels[$channel]->users as $v) {
-				if ($v->user->nick == $nick)
+		foreach ($this->ircChannels as $Channel) {
+			if ($Channel->name == $_channel)
+			{
+				foreach ($Channel->users as $ChannelUser)
 				{
-					return $v;
+					if ($ChannelUser->user->nick == $_user) { return $ChannelUser; }
 				}
 			}
 		}
