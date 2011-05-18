@@ -27,7 +27,8 @@ class netIrc_Base {
 	protected $ircNick = null;				# Nickname used
 	protected $ircIdent = null;				# Ident used
 	protected $ircRealname = null;			# Realname used
-	protected $ircChannels = null;			# Channels joined
+	protected $ircChannels = array();			# Channels joined
+	protected $ircUsers = array();
 	protected $ircMotd = null;				# Server MOTD
 	protected $ircLoggedIn = false;			# Connected or not
 	protected $ircBuffers = null;			# Send queues
@@ -378,6 +379,31 @@ class netIrc_Base {
 	###########
 	# HELPERS #
 	###########
+	
+	public function ircGetUser($nick)
+	{
+		foreach ($this->ircUsers as $v) {
+			if ($v->nick == $nick)
+			{
+				return $v;
+			}
+		}
+		return false;
+	}
+	
+	public function ircGetChannelUser($channel,$nick)
+	{
+		if (isset($this->ircChannels[$channel]))
+		{
+			foreach ($this->ircChannels[$channel]->users as $v) {
+				if ($v->user->nick == $nick)
+				{
+					return $v;
+				}
+			}
+		}
+		return false;
+	}
 	
 	public function ircIsMask($in,$transform = false)
 	{

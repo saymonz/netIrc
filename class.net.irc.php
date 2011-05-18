@@ -32,7 +32,7 @@ class netIrc extends netIrc_Handlers {
 	 */
 }
 
-class netIrc_Line { // Dummy class for each IRC line
+class netIrc_Line {
 	public $source;
 	public $command;
 	public $target;
@@ -44,7 +44,7 @@ class netIrc_Line { // Dummy class for each IRC line
 	public $raw;
 }
 
-class netIrc_Channel { // Dummy class for channel informations
+class netIrc_Channel {
 	public $topic;
 	public $topic_by;
 	public $topic_time;
@@ -53,12 +53,18 @@ class netIrc_Channel { // Dummy class for channel informations
 	public $lists = array();
 }
 
-class netIrc_User { // Dummy class for user informations
+class netIrc_User {
 	public $nick;
 	public $ident;
 	public $host;
 	public $mask;
 	public $realname;
+	//public $modes;
+	public $channels = array();
+}
+
+class netIrc_ChannelUser {
+	public $user;
 	public $modes;
 }
 ?>
