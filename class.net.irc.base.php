@@ -418,8 +418,11 @@ class netIrc_Base {
 			{
 				foreach ($Channel->users as $key => $ChannelUser)
 				{
-					if ($_key) { return $key; }
-					if ($ChannelUser->user->nick == $_user) { return $ChannelUser; }
+					if ($ChannelUser->user->nick == $_user)
+					{
+						if ($_key) { return $key; }
+						return $ChannelUser;
+					}
 				}
 			}
 		}
