@@ -387,40 +387,111 @@ class netIrc_Base {
 	# HELPERS #
 	###########
 	
-	public function ircGetChannel($channel)
+	public function ircGetChannel($_channel,$_key = false)
 	{
-		foreach ($this->ircChannels as $v) {
-			if ($v->name == $channel)
+		foreach ($this->ircChannels as $key => $Channel) {
+			if ($Channel->name == $_channel)
 			{
-				return $v;
+				if ($_key) { return $key; }
+				return $Channel;
 			}
 		}
 		return false;
 	}
 	
-	public function ircGetUser($nick)
+	public function ircGetUser($_nick,$_key = false)
 	{
-		foreach ($this->ircUsers as $v) {
-			if ($v->nick == $nick)
+		foreach ($this->ircUsers as $key => $User) {
+			if ($User->nick == $_nick)
 			{
-				return $v;
+				if ($_key) { return $key; }
+				return $User;
 			}
 		}
 		return false;
 	}
 	
-	public function ircGetChannelUser($_channel,$_user)
+	public function ircGetChannelUser($_channel,$_user,$_key = false)
 	{
 		foreach ($this->ircChannels as $Channel) {
 			if ($Channel->name == $_channel)
 			{
-				foreach ($Channel->users as $ChannelUser)
+				foreach ($Channel->users as $key => $ChannelUser)
 				{
+					if ($_key) { return $key; }
 					if ($ChannelUser->user->nick == $_user) { return $ChannelUser; }
 				}
 			}
 		}
 		return false;
+	}
+	
+	public function ircCleanChannel($_channel)
+	{
+		$Channel = $this->ircGetChannel($_channel);
+		$Channel_key = $this->ircGetChannel($_channel,true);
+		if ($Channel === false) { return false; }
+		
+		foreach ($Channel->users as $ChannelUser)
+		{
+			foreach ($ChannelUser->user->channels as $_k => $_Channel)
+			{
+				if ($_Channel->name == $Channel->name)
+				{
+					unset($ChannelUser->user->channels[$_k]);
+				}
+			}
+		}
+		unset($this->ircChannels[$Channel_key]);
+	}
+	
+	public function ircCleanUser($_user)
+	{
+		$User = $this->ircGetUser($_user);
+		$User_key = $this->ircGetUser($_user,true);
+		if ($User === false) { return false; }
+		
+		foreach ($User->channels as $Channel)
+		{
+			foreach ($Channel->users as $_k => $_ChannelUser)
+			{
+				if ($_ChannelUser->user->nick == $User->nick)
+				{
+					unset($Channel->users[$_k]);
+				}
+			}
+		}
+		unset($this->ircUsers[$Channel_key]);
+	}
+	
+	public function ircCleanChannelUser($_channel,$_user)
+	{
+		$Channel = $this->ircGetChannel($_channel);
+		$User = $this->ircGetUser($_user);
+		if ($Channel === false) { return false; }
+		if ($User === false) { return false; }
+		
+		foreach ($Channel->users as $key => $ChannelUser)
+		{
+			if ($ChannelUser->user->nick == $_user)
+			{
+				
+				unset($Channel->users[$key]);
+			}
+		}
+		
+		foreach ($User->channels as $key => $Channel)
+		{
+			if ($Channel->name == $_channel)
+			{
+				unset($User->channels[$key]);
+			}
+		}
+		
+		if (count($User->channels) === 0)
+		{
+			$this->ircCleanUser($User->nick);
+		}
 	}
 	
 	public function ircIsMask($in,$transform = false)
@@ -446,11 +517,12 @@ class netIrc_Base {
 		return $res;
 	}
 	
-	public function ircIsOn($nick,$channel) {
-		if (isset($this->ircChannels[$channel]) && isset($this->ircChannels[$channel]->users[$nick]))
+	public function ircIsOn($_nick,$_channel) {
+		if ($this->ircGetChannelUser($_channel,$_nick) === false)
 		{
-			return $this->ircChannels[$channel]->users[$nick];
-		} else { return false; }
+			return false;
+		}
+		return true;
 	}
 	
 	public function ircMask2Nick($in)
