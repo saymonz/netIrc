@@ -461,7 +461,7 @@ class netIrc_Base {
 				}
 			}
 		}
-		unset($this->ircUsers[$Channel_key]);
+		unset($this->ircUsers[$User_key]);
 	}
 	
 	public function ircCleanChannelUser($_channel,$_user)

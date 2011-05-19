@@ -181,19 +181,16 @@ class netIrc_Handlers extends netIrc_Commands {
 			$User = $this->ircGetUser($_nick);			
 			$ChannelUser = $this->ircGetChannelUser($Line->args[1],$_nick);
 			
-			if ($User === false) {
-				$this->ircUsers[] = $User = new netIrc_User;
-				$User->nick = $_nick;
-				$User->channels[] = $Channel;
-			}
-			
+			if ($User === false) { $this->ircUsers[] = $User = new netIrc_User; }
 			if ($ChannelUser === false)
 			{
 				$Channel->users[] = $ChannelUser = new netIrc_ChannelUser;
-				$ChannelUser->modes = $_modes;
 				$ChannelUser->user = $User;
-				
+				$User->channels[] = $Channel;
 			}
+
+			$User->nick = $_nick;
+			$ChannelUser->modes = $_modes;
 		}
 	}
 	
