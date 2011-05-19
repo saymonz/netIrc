@@ -27,9 +27,9 @@ class netIrc_Base {
 	protected $ircNick = null;				# Nickname used
 	protected $ircIdent = null;				# Ident used
 	protected $ircRealname = null;			# Realname used
-	protected $ircChannels = array();			# Channels joined
-	protected $ircChannelPrefixes = null;
-	protected $ircUsers = array();
+	protected $ircChannels = array();		# Channels storage
+	protected $ircChannelPrefixes = null;	# Channel prefixes
+	protected $ircUsers = array();			# Users storage
 	protected $ircMotd = null;				# Server MOTD
 	protected $ircLoggedIn = false;			# Connected or not
 	protected $ircBuffers = null;			# Send queues
@@ -37,8 +37,9 @@ class netIrc_Base {
 	protected $ircChannelModes = array();	# Channel modes
 	protected $ircNickPrefixes = array();	# Nicknames prefixes
 	protected $ircLastReceived = null;		# Last received time
-	protected $ircLoginSent = false;
-	protected $ircReconnect = true;
+	protected $ircLoginSent = false;		# Have we send the connection infos?
+	protected $ircReconnect = true;			# Shoul the class automatically reconnect to IRC?
+	protected $loopBreak = false;
 	
 	// Internal
 	protected $eventHandlers = array();		# Event handlers
@@ -199,6 +200,8 @@ class netIrc_Base {
 			if ($tickerSleep >= $tickerMax) { $tickerSleep = $tickerMax; }
 			//if (!$this->ircLoggedIn) { $tickerSleep = 10000; }
 			if ($this->ircLoggedIn) { usleep($tickerSleep); }
+			
+			if ($this->loopBreak) { $this->loopBreak = false; break; }
 		}
 	}
 	

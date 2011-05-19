@@ -279,7 +279,12 @@ class netIrc_Handlers extends netIrc_Commands {
 	
 	protected function __handleERROR($Line)
 	{
-		if ($this->ircReconnect) { $this->connect(); }
+		if ($this->ircReconnect)
+		{
+			$this->connect();
+			$this->listen();
+		}
+		$this->loopBreak = true;
 	}
 	
 	protected function __handleJOIN($Line)
@@ -447,17 +452,10 @@ class netIrc_Handlers extends netIrc_Commands {
 	
 	protected function __handleNICK($Line)
 	{
-		print_r($Line);
 		if ($Line->source->nick == $this->ircNick) { $this->ircNick = $Line->message; } // Own nick change
-		foreach ($this->ircChannels as &$channel)
-		{
-			if (isset($channel->users[$Line->source->nick]))
-			{
-				$channel->users[$Line->source->nick]->nick = $Line->message;
-				$channel->users[$Line->message] = $channel->users[$Line->source->nick];
-				unset($channel->users[$Line->source->nick]);
-			}
-		}
+		
+		$User = $this->ircGetUser($Line->source->nick);
+		$User->nick = $Line->message;
 	}
 	
 	protected function __handleNOTICEAUTH($Line)
