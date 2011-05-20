@@ -65,23 +65,9 @@ class netIrc_Handlers extends netIrc_Commands {
 			
 		}
 	}
-
-	/*
-	protected function __handle311($Line) // WHOIS first line
-	{
-		$User = $this->ircGetUser($Line->args[0]);
-		if ($User === false) { return; }
-		$User->nick = $Line->args[0];
-		$User->ident = $Line->args[1];
-		$User->host = $Line->args[2];
-		$User->mask = $Line->args[0].'!'.$Line->args[1].'@'.$Line->args[2];
-		$User->realname = implode(' ',array_slice($Line->message_xt,1));
-	}
-	*/
 	
 	protected function __handle324($Line) // Channel modes
 	{
-		// :courbevoie.fr.epiknet.org 324 Anonyme10867 #saymonz +ntr
 		$Line = clone $Line;
 		$Line->target = array_shift($Line->args);
 		$Line->target_ischannel = true;
@@ -258,7 +244,8 @@ class netIrc_Handlers extends netIrc_Commands {
 	{
 		if ($Line->message_xt[0] == 'VERSION')
 		{
-			$this->sendCtcpRep($Line->source->nick,'VERSION PHP NetIrc by saymonz');
+			$this->sendCtcpRep($Line->source->nick,'VERSION PHP netIrc by saymonz');
+			$this->sendCtcpRep($Line->source->nick,'Find the code at https://bitbucket.org/saymonz/netirc/');
 		}
 		if ($Line->message_xt[0] == 'PING')
 		{
@@ -410,13 +397,6 @@ class netIrc_Handlers extends netIrc_Commands {
 								break;
 								
 								default:
-									/* 
-									 * If the server sends any additional types after these 4, the client
-									 * MUST ignore them; this is intended to allow future extension of this
-									 * token.
-									 * 
-									 * -> DO NOTHING
-									 */
 								break;
 							}
 						}
