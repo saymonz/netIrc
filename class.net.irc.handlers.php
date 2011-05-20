@@ -245,7 +245,7 @@ class netIrc_Handlers extends netIrc_Commands {
 		if ($Line->message_xt[0] == 'VERSION')
 		{
 			$this->sendCtcpRep($Line->source->nick,'VERSION PHP netIrc by saymonz');
-			$this->sendCtcpRep($Line->source->nick,'Find the code at https://bitbucket.org/saymonz/netirc/');
+			$this->sendCtcpRep($Line->source->nick,'VERSION Find the code at https://bitbucket.org/saymonz/netirc/');
 		}
 		if ($Line->message_xt[0] == 'PING')
 		{
