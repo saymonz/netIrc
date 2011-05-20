@@ -121,7 +121,7 @@ class netIrc_Handlers extends netIrc_Commands {
 			$Channel->lists['I'] = array();
 		}
 
-		if (!isset($this->ircChannels[$Line->args[0]]->lists['I'][$Line->args[1]]))
+		if (!isset($Channel->lists['I']->lists['I'][$Line->args[1]]))
 		{
 			$Channel->lists['I'][$Line->args[1]] = new stdClass;
 			$Channel->lists['I'][$Line->args[1]]->by = $Line->args[2];
@@ -137,7 +137,7 @@ class netIrc_Handlers extends netIrc_Commands {
 			$Channel->lists['e'] = array();
 		}
 
-		if (!isset($this->ircChannels[$Line->args[0]]->lists['e'][$Line->args[1]]))
+		if (!isset($Channel->lists['I']->lists['e'][$Line->args[1]]))
 		{
 			$Channel->lists['e'][$Line->args[1]] = new stdClass;
 			$Channel->lists['e'][$Line->args[1]]->by = $Line->args[2];
@@ -264,7 +264,7 @@ class netIrc_Handlers extends netIrc_Commands {
 	{
 		if ($Line->message_xt[0] == 'VERSION')
 		{
-			$this->sendCtcpRep($Line->source->nick,'VERSION PHP NetIrc by Saymonz');
+			$this->sendCtcpRep($Line->source->nick,'VERSION PHP NetIrc by saymonz');
 		}
 		if ($Line->message_xt[0] == 'PING')
 		{
@@ -341,25 +341,10 @@ class netIrc_Handlers extends netIrc_Commands {
 					default:
 						if (in_array($mode,$this->ircNickPrefixes)) // mode utilisateur préfixé
 						{
-							$nick = array_shift($Line->args);
-							$channelUser = $this->ircGetChannelUser($Line->target,$nick);
-							$um = $channelUser->modes;
-							
-							if ($m)
-							{
-								if (strpos($um,$mode) === false)
-								{
-									$um .= $mode;
-								}
-							} else {
-								$p = strpos($um,$mode);
-								if ($p !== false)
-								{
-									$um = substr($um,0,$p).substr($um,$p+1);
-								}
-							}
-							$channelUser->modes = $um;
-						} else {
+							$ChannelUser = $this->ircGetChannelUser($Line->target,array_shift($Line->args));
+							$ChannelUser->modes = $this->ircModeChange($ChannelUser->modes,$mode,$m);
+						} else
+						{
 							foreach ($this->ircChannelModes as $k => $v)
 							{
 								if (strpos($v,$mode) !== false) { break; }
@@ -385,17 +370,8 @@ class netIrc_Handlers extends netIrc_Commands {
 										}
 									} else
 									{
-										$channelUser = $this->ircGetChannelUser($Line->target,$m_target);
-										$um = $channelUser->modes;
-										
-										if ($m)
-										{
-											$um .= $mode;
-										} else {
-											$p = strpos($um,$mode);
-											$um = substr($um,0,$p).substr($um,$p+1);
-										}
-										$channelUser->modes = $um;
+										$ChannelUser = $this->ircGetChannelUser($Line->target,$m_target);
+										$ChannelUser->modes = $this->ircModeChange($ChannelUser->modes,$mode,$m);
 									}
 								break;
 									

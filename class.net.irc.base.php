@@ -147,10 +147,14 @@ class netIrc_Base {
 	
 	public function getMotd() { return $this->ircMotd; }
 	
-	public function getChannels($channel = null) { 
-		if ($channel == null) { return $this->ircChannels; }
-		if (isset($this->ircChannels[$channel])) { return $this->ircChannels[$channel]; }
-		return false;
+	public function getChannels()
+	{ 
+		return $this->ircChannels;
+	}
+	
+	public function getUsers()
+	{
+		return $this->ircUsers;
 	}
 	
 	public function deconnect($msg = null) {
@@ -449,6 +453,18 @@ class netIrc_Base {
 			}
 		}
 		unset($this->ircChannels[$Channel_key]);
+		$this->ircCleanUsers();
+	}
+	
+	public function ircCleanUsers()
+	{
+		foreach ($this->ircUsers as $User)
+		{
+			if (count($User->channels) === 0)
+			{
+				$this->ircCleanUser($User->nick);
+			}
+		}
 	}
 	
 	public function ircCleanUser($_user)
@@ -498,6 +514,27 @@ class netIrc_Base {
 		{
 			$this->ircCleanUser($User->nick);
 		}
+	}
+	
+	public function ircModeChange($_modes,$_m,$_b = true)
+	{
+		$mpos = strpos($_modes,$_m);
+		
+		if ($_b)
+		{
+			if ($mpos === false)
+			{
+				$_modes .= $_m;
+			}
+		} else
+		{	
+			if ($mpos !== false)
+			{
+				$_modes = substr($_modes,0,$mpos).substr($_modes,$mpos+1);
+			}
+		}
+		
+		return $_modes;
 	}
 	
 	public function ircIsMask($in,$transform = false)
