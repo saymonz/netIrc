@@ -24,11 +24,11 @@ class netIrc extends netIrc_Handlers {
 	 * the class to maintain an IRC connection alive among other things.
 	 * - netIrc_Commands containing all the send*(); functions, for
 	 * interacting with the server.
-	 * - netIrc_Base conteining the core of the class (the mail listen()
-	 * function for example) among other things (various halpers, etc.),
-	 * that's where every public functions are.
+	 * - netIrc_Base conteining the core of the class (the main listen()
+	 * function for example) among other things (various helpers, etc.),
+	 * this is where every public functions are.
 	 * 
-	 * This separation is juste for code clarification purpose.
+	 * This separation is just for code clarification purpose.
 	 */
 }
 
