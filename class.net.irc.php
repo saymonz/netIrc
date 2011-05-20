@@ -61,7 +61,6 @@ class netIrc_User {
 	public $host;
 	public $mask;
 	public $realname;
-	//public $modes;
 	public $channels = array();
 }
 

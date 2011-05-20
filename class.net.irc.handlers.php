@@ -49,20 +49,6 @@ class netIrc_Handlers extends netIrc_Commands {
 					break;
 					
 					case 'CHANMODES':
-						/*
-						   o  Type A (0): Modes that add or remove an address to or from a list.
-							  These modes always take a parameter when sent by the server to a
-							  client; when sent by a client, they may be specified without a
-							  parameter, which requests the server to display the current
-							  contents of the corresponding list on the channel to the client.
-						   o  Type B (1): Modes that change a setting on the channel.  These modes
-							  always take a parameter.
-						   o  Type C (2): Modes that change a setting on the channel. These modes
-							  take a parameter only when set; the parameter is absent when the
-							  mode is removed both in the client's and server's MODE command.
-						   o  Type D (3): Modes that change a setting on the channel. These modes
-							  never take a parameter.
-						*/
 						$this->ircChannelModes = explode(',',$arg[1]);
 						
 					break;
@@ -73,16 +59,14 @@ class netIrc_Handlers extends netIrc_Commands {
 				{
 					case 'NAMESX':
 						$this->__send('PROTOCTL NAMESX',0);
-					break;	
-						
-					
-					
+					break;
 				}
 			}
 			
 		}
 	}
-	
+
+	/*
 	protected function __handle311($Line) // WHOIS first line
 	{
 		$User = $this->ircGetUser($Line->args[0]);
@@ -93,10 +77,14 @@ class netIrc_Handlers extends netIrc_Commands {
 		$User->mask = $Line->args[0].'!'.$Line->args[1].'@'.$Line->args[2];
 		$User->realname = implode(' ',array_slice($Line->message_xt,1));
 	}
+	*/
 	
 	protected function __handle324($Line) // Channel modes
 	{
+		// :courbevoie.fr.epiknet.org 324 Anonyme10867 #saymonz +ntr
+		$Line = clone $Line;
 		$Line->target = array_shift($Line->args);
+		$Line->target_ischannel = true;
 		$this->__handleMODE($Line);
 	}
 	
@@ -196,6 +184,7 @@ class netIrc_Handlers extends netIrc_Commands {
 	
 	protected function __handle366($Line) // NAMES end
 	{
+		$this->sendRaw('MODE '.$Line->args[0],1);
 		$this->sendRaw('WHO '.$Line->args[0],1);
 		$modes = str_split($this->ircChannelModes[0]);
 		foreach ($modes as $m) { $this->sendRaw('MODE '.$Line->args[0].' +'.$m,1); }
@@ -229,6 +218,11 @@ class netIrc_Handlers extends netIrc_Commands {
 	{
 		$this->ircLoggedIn = true;
 		$this->netSocket->setBlocking(0);
+		
+		$this->ircUsers[] = $User = new netIrc_User;
+		$User->nick = $this->ircNick;
+		
+		$this->sendRaw('WHO '.$User->nick,1);
 	}
 	
 	protected function __handle386($Line) // Channel owners list
@@ -293,16 +287,22 @@ class netIrc_Handlers extends netIrc_Commands {
 		{
 			$this->ircChannels[] = $Channel = new netIrc_Channel;
 			$Channel->name = $Line->message;
+		} else
+		{
+			$Channel = $this->ircGetChannel($Line->message);
 		}
 		
 		$User = $this->ircGetUser($Line->source->nick);
-		if ($User === false) { $this->ircUsers[] = $User = new netIrc_User; }
-		if (!isset($Channel)) { $Channel = $this->ircGetChannel($Line->message); }
+		if ($User === false)
+		{
+			$this->ircUsers[] = $User = new netIrc_User;
+			$User->nick = $Line->source->nick;
+			$User->ident = $Line->source->ident;
+			$User->host = $Line->source->host;
+			$User->mask = $Line->source->mask;
+			$this->sendRaw('WHO '.$User->nick,1);
+		}
 		
-		$User->nick = $Line->source->nick;
-		$User->ident = $Line->source->ident;
-		$User->host = $Line->source->host;
-		$User->mask = $Line->source->mask;
 		$User->channels[] = $Channel;
 		
 		$Channel->users[] = $ChannelUser = new netIrc_ChannelUser;
@@ -322,6 +322,7 @@ class netIrc_Handlers extends netIrc_Commands {
 	
 	protected function __handleMODE($Line)
 	{
+		$Line = clone $Line;
 		if ($Line->target_ischannel)
 		{
 			$Channel = $this->ircGetChannel($Line->target);
@@ -374,7 +375,6 @@ class netIrc_Handlers extends netIrc_Commands {
 										$ChannelUser->modes = $this->ircModeChange($ChannelUser->modes,$mode,$m);
 									}
 								break;
-									
 									
 								case 1:
 									$arg = array_shift($Line->args); // Cat. B, always shift a parameter
