@@ -4,23 +4,23 @@
  *      it under the terms of the GNU General Public License as published by
  *      the Free Software Foundation; either version 2 of the License, or
  *      (at your option) any later version.
- *      
+ *
  *      This program is distributed in the hope that it will be useful,
  *      but WITHOUT ANY WARRANTY; without even the implied warranty of
  *      MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *      GNU General Public License for more details.
- *      
+ *
  *      You should have received a copy of the GNU General Public License
  *      along with this program; if not, write to the Free Software
  *      Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
  *      MA 02110-1301, USA.
  */
- 
+
 class netIrc_Base {
 	// Clearbricks' netSocket
 	protected $netSocket = null;			# Instance of netSocket
 	protected $netSocketIterator = null;	# Instance of netSocketIterator
-	
+
 	// IRC
 	protected $ircHost = null;				# Server host
 	protected $ircPort = null;				# Server port
@@ -40,7 +40,7 @@ class netIrc_Base {
 	protected $ircLoginSent = false;		# Have we send the connection infos?
 	protected $ircReconnect = true;			# Shoul the class automatically reconnect to IRC?
 	protected $loopBreak = false;
-	
+
 	// Internal
 	protected $eventHandlers = array();		# Event handlers
 	protected $debugEnabled = true;			# Debug to stdout or not
@@ -50,34 +50,33 @@ class netIrc_Base {
 	protected $tickerMax = 500000;			# Max ticker interval
 	protected $tickerMin = 10000;			# Min ticker interval
 	protected $tickerInc = 10000;			# Ticker incrementation
+
+	#####################################
+	#		CONSTRUCTOR/DESTRUCTOR		#
+	#####################################
 	
-	
-	public function __construct($host,$port,$nick,$ident,$realname) 
+	public function __construct($host,$port,$nick,$ident,$realname)
 	{
-		// Setting up vars...
 		$this->ircHost = $host;
 		$this->ircPort = (int) $port;
 		$this->ircNick = $nick;
 		$this->ircIdent = $ident;
 		$this->ircRealname = $realname;
-		
-		// Setting up sending queues
+
 		$this->ircBuffers = range(1,6);
 		foreach ($this->ircBuffers as &$v) { $v = array(); }
-		
-		// Setting up handlers
 		$this->eventHandlers = array();
 	}
-	
+
 	public function __destruct()
 	{
 		// nothing for now
 	}
-	
+
 	#################################
 	#		HANDLERS FUNCTIONS		#
 	#################################
-	
+
 	public function registerHandler($type,$name,$callback,$regex = null)
 	{
 		if (is_callable($callback))
@@ -86,19 +85,20 @@ class netIrc_Base {
 			{
 				$this->eventHandlers[$type] = array();
 			}
-			
+
 			$this->eventHandlers[$type][$name] = array();
 			$this->eventHandlers[$type][$name]['regex'] = $regex;
 			$this->eventHandlers[$type][$name]['callback'] = $callback;
-			
+
 			$this->__debug('|| INTERNAL: Adding handler '.$name.' for '.$type);
 			return true;
-		} else {
+		} else
+		{
 			$this->__debug('|| INTERNAL: WARNING: invalid callback '.$name.' for '.$type);
 			return false;
 		}
 	}
-	
+
 	public function unregisterHandler($type,$name)
 	{
 		if (isset($this->eventHandlers[$type]) && isset($this->eventHandlers[$type][$name]))
@@ -111,62 +111,86 @@ class netIrc_Base {
 			return false;
 		}
 	}
+
+	#####################
+	#		GETTERS		#
+	#####################
+
+	public function getNick() { return $this->ircNick; }
+
+	public function getMotd() { return $this->ircMotd; }
+
+	public function getChannels() { return $this->ircChannels; }
+
+	public function getUsers() { return $this->ircUsers; }
 	
-	protected function __callHandler($type,$Line)
+	public function getChannel($_channel,$_key = false)
 	{
-		if (is_callable(array($this,'__handle'.$type)))
-		{
-			$this->__debug('|| INTERNAL: Calling internal handler for '.$type);
-			call_user_func(array($this,'__handle'.$type),$Line);
-		}
-		
-		if (isset($this->eventHandlers[$type]))
-		{
-			foreach ($this->eventHandlers[$type] as $k => &$v)
+		foreach ($this->ircChannels as $key => $Channel) {
+			if ($Channel->name == $_channel)
 			{
-				if (is_callable($v['callback']))
+				if ($_key) { return $key; }
+				return $Channel;
+			}
+		}
+		return false;
+	}
+
+	public function getUser($_nick,$_key = false)
+	{
+		foreach ($this->ircUsers as $key => $User) {
+			if ($User->nick == $_nick)
+			{
+				if ($_key) { return $key; }
+				return $User;
+			}
+		}
+		return false;
+	}
+
+	public function getChannelUser($_channel,$_user,$_key = false)
+	{
+		foreach ($this->ircChannels as $Channel) {
+			if ($Channel->name == $_channel)
+			{
+				foreach ($Channel->users as $key => $ChannelUser)
 				{
-					if (is_null($v['regex']) || !isset($Line->message_stripped) || preg_match($v['regex'],$Line->message_stripped))
+					if ($ChannelUser->user->nick == $_user)
 					{
-						$this->__debug('|| INTERNAL: Calling external handler '.$k.' for '.$type);
-						call_user_func($v['callback'],$this,$Line);
+						if ($_key) { return $key; }
+						return $ChannelUser;
 					}
-				} else {
-					$this->__debug('|| INTERNAL: WARNING: invalid callback '.$k.' for '.$type);
 				}
 			}
 		}
+		return false;
+	}
+
+	#####################################
+	#		CONNECTION MANAGEMENT		#
+	#####################################
+	
+	public function connect() {
+		$this->ircLoggedIn = false;
+		$this->ircLoginSent = false;
+		unset($this->netSocketIterator);
+		unset($this->netSocket);
+
+		$this->netSocket = new netSocket($this->ircHost,$this->ircPort);
+		$this->netSocketIterator = $this->netSocket->open();
 		return true;
 	}
-	
-	#################################
-	#			Getters				#
-	#################################
-	
-	public function getNick() { return $this->ircNick; }
-	
-	public function getMotd() { return $this->ircMotd; }
-	
-	public function getChannels()
-	{ 
-		return $this->ircChannels;
-	}
-	
-	public function getUsers()
-	{
-		return $this->ircUsers;
-	}
-	
+
 	public function deconnect($msg = null) {
 		$this->ircReconnect = false;
 		$this->__flushBuffer();
 		$this->sendQuit($msg);
 	}
-	
-	#################################
-	#		MAIN LOOP FUNCTION		#
-	#################################
-	
+
+	#########################
+	#		MAIN LOOP		#
+	#########################
+
 	public function listen()
 	{
 		$tickerSleep = $tickerMin = 100000;
@@ -174,7 +198,7 @@ class netIrc_Base {
 		$tickerInc = 50000;
 		$pingerSent = false;
 		$this->ircLastReceived = time();
-		
+
 		foreach ($this->netSocketIterator as $v)
 		{
 			if ($this->__rawReceive($v) || $this->__checkBuffer())
@@ -192,34 +216,27 @@ class netIrc_Base {
 						$this->sendCtcpReq($this->ircNick,'PING '.time(),0);
 						$pingerSent = true;
 					}
-					
+
 					if ((time() - $this->ircLastReceived) >= 35) {
 						$this->__debug('|| INTERNAL: WARNING: Seems we\'re not connected... restarting...');
 						if ($this->ircReconnect) { $this->connect(); } else { break; }
 					}
 				}
 			}
-			
+
 			if ($tickerSleep <= $tickerMin) { $tickerSleep = $tickerMin; }
 			if ($tickerSleep >= $tickerMax) { $tickerSleep = $tickerMax; }
 			//if (!$this->ircLoggedIn) { $tickerSleep = 10000; }
 			if ($this->ircLoggedIn) { usleep($tickerSleep); }
-			
+
 			if ($this->loopBreak) { $this->loopBreak = false; break; }
 		}
 	}
 	
-	public function connect() {
-		$this->ircLoggedIn = false;
-		$this->ircLoginSent = false;
-		unset($this->netSocketIterator);
-		unset($this->netSocket);
-		
-		$this->netSocket = new netSocket($this->ircHost,$this->ircPort);
-		$this->netSocketIterator = $this->netSocket->open();
-		return true;
-	}
-	
+	#####################################
+	#		INCOMING DATAS HANDLING		#
+	#####################################
+
 	protected function __rawReceive(&$Line)
 	{
 		$parsed = $this->__ircParser($Line);
@@ -228,45 +245,44 @@ class netIrc_Base {
 		$this->__callHandler($parsed->command,$parsed);
 		return true;
 	}
-	
+
 	public function __ircParser($in)
 	{
 		$in = trim(text::toUTF8($in));
 		if ($in == null) { return false; }
-		
+
 		$res = new netIrc_Line;
 		$res->raw = $in;
-		
-		$match = array(); 
+
+		$match = array();
 		if (preg_match('#^:(.+) :(.*)$#U',$in,$match))
 		{
 			$match[1] = explode(' ',$match[1]);
-			$match[1] = $this->__arrayTrimmer($match[1]);
 
-			$res->source = $this->ircIsMask(array_shift($match[1]),true);
-			
-			
+			$res->source = $this->isMask(array_shift($match[1]),true);
+
+
 			$res->command = array_shift($match[1]);
 			$res->target = array_shift($match[1]);
-			
+
 			$res->args = $match[1];
-			
+
 
 			$res->message = $match[2];
 			$res->message_xt = explode(' ',$res->message);
-			
+
 			$res->message_stripped = $this->ircStripper($match[2]);
 			$res->message_stripped_xt = explode(' ',$res->message_stripped);
-			
+
 			$match = array();
 			if (preg_match('#^[\x01](.+)[\x01]$#',$res->message,$match))
 			{
 				$res->message = $match[1];
 				$res->message_xt = explode(' ',$res->message);
-				
+
 				$res->message_stripped = $this->ircStripper($match[1]);
 				$res->message_stripped_xt = explode(' ',$res->message_stripped);
-				
+
 				if ($res->command === 'PRIVMSG')
 				{
 					if ($res->message_xt[0] === 'ACTION')
@@ -289,20 +305,18 @@ class netIrc_Base {
 		} elseif (preg_match('#^:(.+)$#U',$in,$match))
 		{
 			$match[1] = explode(' ',$match[1]);
-			$match[1] = $this->__arrayTrimmer($match[1]);
 
-			$res->source = $this->ircIsMask(array_shift($match[1]),true);
-						
-						
+			$res->source = $this->isMask(array_shift($match[1]),true);
+
+
 			$res->command = array_shift($match[1]);
 			$res->target = array_shift($match[1]);
-			
+
 			$res->args = $match[1];
 		} elseif (preg_match('#^(.+):(.*)$#U',$in,$match))
 		{
 			$match[1] = explode(' ',$match[1]);
-			$match[1] = $this->__arrayTrimmer($match[1]);
-			
+
 			$res->command = array_shift($match[1]);
 			$res->args = $match[1];
 			$res->message = $match[2];
@@ -314,13 +328,13 @@ class netIrc_Base {
 			$this->deconnect('ERROR');
 			exit();
 		}
-		
+
 		if ($res->command === 'NOTICE' && $res->target === 'AUTH')
 		{
 			$res->target = $this->ircNick;
 			$res->command = 'NOTICEAUTH';
 		}
-		
+
 		if (strpos($this->ircChannelPrefixes,substr($res->target,0,1)) !== false)
 		{
 			$res->target_ischannel = true;
@@ -328,20 +342,48 @@ class netIrc_Base {
 		return $res;
 	}
 	
-	#################################
-	#		SEND QUEUES FUNCS		#
-	#################################
-	
+	protected function __callHandler($type,$Line)
+	{
+		if (is_callable(array($this,'__handle'.$type)))
+		{
+			$this->__debug('|| INTERNAL: Calling internal handler for '.$type);
+			call_user_func(array($this,'__handle'.$type),$Line);
+		}
+
+		if (isset($this->eventHandlers[$type]))
+		{
+			foreach ($this->eventHandlers[$type] as $k => &$v)
+			{
+				if (is_callable($v['callback']))
+				{
+					if (is_null($v['regex'])|| !isset($Line->message_stripped) || preg_match($v['regex'],$Line->message_stripped))
+					{
+						$this->__debug('|| INTERNAL: Calling external handler '.$k.' for '.$type);
+						call_user_func($v['callback'],$this,$Line);
+					}
+				} else
+				{
+					$this->__debug('|| INTERNAL: WARNING: invalid callback '.$k.' for '.$type);
+				}
+			}
+		}
+		return true;
+	}
+
+	#####################################
+	#		OUTGOING DATAS HANDLING		#
+	#####################################
+
 	protected function __send($Line,$priority = 3)
 	{
 		$Line = trim(text::toUTF8($Line));
 		if ($Line == null) { return; }
-		
+
 		if (!is_numeric($priority) || $priority < 0 || $priority > 5)
 		{
 			$priority = 3;
 		}
-		
+
 		if ($priority == 0)
 		{
 			//$this->__debug('|| INTERNAL: Sending '.$this->strBytesCounter($Line."\n").'bytes ('.strlen($Line."\n").'chars)');
@@ -349,7 +391,7 @@ class netIrc_Base {
 			$this->netSocket->write($Line."\n");
 		} else { array_push($this->ircBuffers[$priority],$Line); }
 	}
-	
+
 	protected function __checkBuffer()
 	{
 		if (!$this->ircLoggedIn) { return false; }
@@ -360,22 +402,9 @@ class netIrc_Base {
 		}
 		return false;
 	}
-	
+
 	public function __flushBuffer() { while ($this->__checkBuffer()) { sleep($this->tickerInterval); } }
-	
-	/*
-	* IRC Special Chars :
-	* 	CTCP delimiter // We don't strip it, used to detect CTCPs and ACTIONs
-	* 	Bold
-	* 	Colors
-	* 	Reverse
-	* 	Underlined
-	* 	Italic
-	* 
-	* Original regex: (don't remember where it came from)
-	* #\x0f|\x1f|\x02|\x03(?:\d{1,2}(?:,\d{1,2})?)?# 
-	*/
-		
+
 	protected function __debug($x)
 	{
 		if (!$this->debugEnabled) { return false; }
@@ -385,63 +414,21 @@ class netIrc_Base {
 		} else {
 			$key = 'T'.time();
 		}
-		
+
 		echo '#'.$key."\t".$x."\n";
 		return true;
 	}
-	
-	###########
-	# HELPERS #
-	###########
-	
-	public function ircGetChannel($_channel,$_key = false)
+
+	#################################
+	#		CORE DATAS HANDLING		#
+	#################################
+
+	public function __deleteChannel($_channel)
 	{
-		foreach ($this->ircChannels as $key => $Channel) {
-			if ($Channel->name == $_channel)
-			{
-				if ($_key) { return $key; }
-				return $Channel;
-			}
-		}
-		return false;
-	}
-	
-	public function ircGetUser($_nick,$_key = false)
-	{
-		foreach ($this->ircUsers as $key => $User) {
-			if ($User->nick == $_nick)
-			{
-				if ($_key) { return $key; }
-				return $User;
-			}
-		}
-		return false;
-	}
-	
-	public function ircGetChannelUser($_channel,$_user,$_key = false)
-	{
-		foreach ($this->ircChannels as $Channel) {
-			if ($Channel->name == $_channel)
-			{
-				foreach ($Channel->users as $key => $ChannelUser)
-				{
-					if ($ChannelUser->user->nick == $_user)
-					{
-						if ($_key) { return $key; }
-						return $ChannelUser;
-					}
-				}
-			}
-		}
-		return false;
-	}
-	
-	public function ircCleanChannel($_channel)
-	{
-		$Channel = $this->ircGetChannel($_channel);
-		$Channel_key = $this->ircGetChannel($_channel,true);
+		$Channel = $this->getChannel($_channel);
+		$Channel_key = $this->getChannel($_channel,true);
 		if ($Channel === false) { return false; }
-		
+
 		foreach ($Channel->users as $ChannelUser)
 		{
 			foreach ($ChannelUser->user->channels as $_k => $_Channel)
@@ -453,26 +440,26 @@ class netIrc_Base {
 			}
 		}
 		unset($this->ircChannels[$Channel_key]);
-		$this->ircCleanUsers();
+		$this->__deleteUsers();
 	}
-	
-	public function ircCleanUsers()
+
+	public function __deleteUsers()
 	{
 		foreach ($this->ircUsers as $User)
 		{
 			if (count($User->channels) === 0)
 			{
-				$this->ircCleanUser($User->nick);
+				$this->__deleteUser($User->nick);
 			}
 		}
 	}
-	
-	public function ircCleanUser($_user)
+
+	public function __deleteUser($_user)
 	{
-		$User = $this->ircGetUser($_user);
-		$User_key = $this->ircGetUser($_user,true);
+		$User = $this->getUser($_user);
+		$User_key = $this->getUser($_user,true);
 		if ($User === false) { return false; }
-		
+
 		foreach ($User->channels as $Channel)
 		{
 			foreach ($Channel->users as $_k => $_ChannelUser)
@@ -485,23 +472,23 @@ class netIrc_Base {
 		}
 		unset($this->ircUsers[$User_key]);
 	}
-	
-	public function ircCleanChannelUser($_channel,$_user)
+
+	public function __deleteChannelUser($_channel,$_user)
 	{
-		$Channel = $this->ircGetChannel($_channel);
-		$User = $this->ircGetUser($_user);
+		$Channel = $this->getChannel($_channel);
+		$User = $this->getUser($_user);
 		if ($Channel === false) { return false; }
 		if ($User === false) { return false; }
-		
+
 		foreach ($Channel->users as $key => $ChannelUser)
 		{
 			if ($ChannelUser->user->nick == $_user)
 			{
-				
+
 				unset($Channel->users[$key]);
 			}
 		}
-		
+
 		foreach ($User->channels as $key => $Channel)
 		{
 			if ($Channel->name == $_channel)
@@ -509,17 +496,17 @@ class netIrc_Base {
 				unset($User->channels[$key]);
 			}
 		}
-		
+
 		if (count($User->channels) === 0)
 		{
-			$this->ircCleanUser($User->nick);
+			$this->__deleteUser($User->nick);
 		}
 	}
-	
-	public function ircModeChange($_modes,$_m,$_b = true)
+
+	public function __modeChange($_modes,$_m,$_b = true)
 	{
 		$mpos = strpos($_modes,$_m);
-		
+
 		if ($_b)
 		{
 			if ($mpos === false)
@@ -527,20 +514,24 @@ class netIrc_Base {
 				$_modes .= $_m;
 			}
 		} else
-		{	
+		{
 			if ($mpos !== false)
 			{
 				$_modes = substr($_modes,0,$mpos).substr($_modes,$mpos+1);
 			}
 		}
-		
+
 		return $_modes;
 	}
-	
-	public function ircIsMask($in,$transform = false)
+
+	#############################
+	#		VARIOUS HELPERS		#
+	#############################
+
+	public function isMask($in,$transform = false)
 	{
 		$in = trim($in);
-		
+
 		if (!$transform)
 		{
 			return preg_match('#^(.+)!(.+)@(.+)$#',$in);
@@ -559,79 +550,123 @@ class netIrc_Base {
 		}
 		return $res;
 	}
-	
-	public function ircIsOn($_nick,$_channel) {
-		if ($this->ircGetChannelUser($_channel,$_nick) === false)
+
+	public function isOn($_nick,$_channel)
+	{
+		if ($this->getChannelUser($_channel,$_nick) === false)
 		{
 			return false;
 		}
 		return true;
 	}
-	
-	public function ircMask2Nick($in)
+
+	public function mask2nick($in)
 	{
 		$in = trim($in);
 		$pos = strpos($in,'!');
-		
+
 		if ($pos !== false)
 		{
 			return substr($in,0,$pos);
 		} else { return false; }
 	}
-	
-	public function ircMask2Ident($in)
+
+	public function mask2ident($in)
 	{
 		// ab!cd@ef
 		$in = trim($in);
 		$pos = strpos($in,'!'); // 2
 		$pos1 = strpos($in,'@'); // 5
-		
+
 		if ($pos !== false && $pos1 !== false)
 		{
 			return substr($in,$pos+1,$pos1-$pos-1);
 		} else { return false; }
 	}
-	
-	public function ircMask2Host($in)
+
+	public function mask2host($in)
 	{
 		$in = trim($in);
 		$pos = strpos($in,'@');
-		
+
 		if ($pos !== false)
 		{
 			return substr($in,$pos+1);
 		} else { return false; }
 	}
-	
+
 	public function matchMask($mask,$reg)
 	{
 		return preg_match('/'.str_replace('\*','(.+)',preg_quote($reg,'/')).'/',$mask);
 	}
-	
-	public function ircStripper($input) { return preg_replace("#\x16|\x1d|\x1f|\x02|\x03(?:\d{1,2}(?:,\d{1,2})?)?#",'',$input); }
-	
-	protected function __arrayTrimmer($in)
+
+	/*
+	* IRC Special Chars :
+	* 	CTCP delimiter // We don't strip it, used to detect CTCPs and ACTIONs
+	* 	Bold
+	* 	Colors
+	* 	Reverse
+	* 	Underlined
+	* 	Italic
+	*
+	* Original regex: (don't remember where it came from)
+	* #\x0f|\x1f|\x02|\x03(?:\d{1,2}(?:,\d{1,2})?)?#
+	*/
+	public function ircStripper($input)
 	{
-		$res = array();
-		foreach ($in as $v)
-		{
-			$v = trim($v);
-			if ($v !== '') { $res [] = $v; }
-		}
-		return $res;
+		return preg_replace("#\x16|\x1d|\x1f|\x02|\x03(?:\d{1,2}(?:,\d{1,2})?)?#",'',$input);
 	}
-    /** 
-     * Count the number of bytes of a given string. 
-     * Input string is expected to be ASCII or UTF-8 encoded. 
-     * Warning: the function doesn't return the number of chars 
+	
+    /**
+     * Count the number of bytes of a given string.
+     * Input string is expected to be ASCII or UTF-8 encoded.
+     * Warning: the function doesn't return the number of chars
      * in the string, but the number of bytes.
-     * 
+     *
      * From http://fr.php.net/manual/function.strlen.php#72274
-     * 
+     *
      * @param string $str The string to compute number of bytes
-     * 
+     *
      * @return The length in bytes of the given string.
-     */ 
-	protected function strBytesCounter($str) { $strlen_var = strlen($str); $d = 0; for ($c = 0; $c < $strlen_var; ++$c) { $ord_var_c = ord($str{$c});switch (true) { case (($ord_var_c >= 0x20) && ($ord_var_c <= 0x7F)): $d++; break; case (($ord_var_c & 0xE0) == 0xC0): $d+=2; break; case (($ord_var_c & 0xF0) == 0xE0): $d+=3; break; case (($ord_var_c & 0xF8) == 0xF0): $d+=4; break; case (($ord_var_c & 0xFC) == 0xF8): $d+=5; break; case (($ord_var_c & 0xFE) == 0xFC): $d+=6; break; default: $d++; }} return $d; }
+     */
+	public function strBytesCounter($str)
+	{
+		$strlen_var = strlen($str);
+		$d = 0;
+		for ($c = 0; $c < $strlen_var; ++$c)
+		{
+			$ord_var_c = ord($str{$c});
+			switch (true)
+			{
+				case (($ord_var_c >= 0x20) && ($ord_var_c <= 0x7F)):
+					$d++;
+				break;
+				
+				case (($ord_var_c & 0xE0) == 0xC0):
+					$d+=2;
+				break;
+				
+				case (($ord_var_c & 0xF0) == 0xE0):
+					$d+=3;
+				break;
+				
+				case (($ord_var_c & 0xF8) == 0xF0):
+					$d+=4;
+				break;
+				
+				case (($ord_var_c & 0xFC) == 0xF8):
+					$d+=5;
+				break;
+				
+				case (($ord_var_c & 0xFE) == 0xFC):
+					$d+=6;
+				break;
+				
+				default:
+					$d++;
+			}
+		}
+		return $d;
+	}
 }
 ?>
