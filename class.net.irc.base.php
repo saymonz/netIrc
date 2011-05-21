@@ -178,6 +178,9 @@ class netIrc_Base {
 	public function connect() {
 		$this->ircLoggedIn = false;
 		$this->ircLoginSent = false;
+		$this->ircChannels = array();
+		$this->ircUsers = array();
+		
 		unset($this->netSocketIterator);
 		unset($this->netSocket);
 
