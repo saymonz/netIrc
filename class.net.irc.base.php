@@ -165,6 +165,11 @@ class netIrc_Base {
 		}
 		return false;
 	}
+	
+	public function getMyself()
+	{
+		return $this->ircUsers[0];
+	}
 
 	#####################################
 	#		CONNECTION MANAGEMENT		#
@@ -449,7 +454,7 @@ class netIrc_Base {
 		{
 			if (count($User->channels) === 0)
 			{
-				$this->__deleteUser($User->nick);
+				if ($User->nick != $this->ircNick) { $this->__deleteUser($User->nick); }
 			}
 		}
 	}
@@ -457,6 +462,7 @@ class netIrc_Base {
 	public function __deleteUser($_user)
 	{
 		$User = $this->getUser($_user);
+		if ($User->nick == $this->ircNick) { return; }
 		$User_key = $this->getUser($_user,true);
 		if ($User === false) { return false; }
 

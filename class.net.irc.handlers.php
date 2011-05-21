@@ -39,7 +39,7 @@ class netIrc_Handlers extends netIrc_Commands {
 					break;
 
 					case 'CHANLIMIT':
-						$_prefixes = split(',',$arg[1]);
+						$_prefixes = explode(',',$arg[1]);
 						$prefixes = '';
 						foreach ($_prefixes as $p)
 						{
