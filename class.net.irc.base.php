@@ -54,7 +54,7 @@ class netIrc_Base {
 	#####################################
 	#		CONSTRUCTOR/DESTRUCTOR		#
 	#####################################
-	
+
 	public function __construct($host,$port,$nick,$ident,$realname)
 	{
 		$this->ircHost = $host;
@@ -123,7 +123,7 @@ class netIrc_Base {
 	public function getChannels() { return $this->ircChannels; }
 
 	public function getUsers() { return $this->ircUsers; }
-	
+
 	public function getChannel($_channel,$_key = false)
 	{
 		foreach ($this->ircChannels as $key => $Channel) {
@@ -169,7 +169,7 @@ class netIrc_Base {
 	#####################################
 	#		CONNECTION MANAGEMENT		#
 	#####################################
-	
+
 	public function connect() {
 		$this->ircLoggedIn = false;
 		$this->ircLoginSent = false;
@@ -232,7 +232,7 @@ class netIrc_Base {
 			if ($this->loopBreak) { $this->loopBreak = false; break; }
 		}
 	}
-	
+
 	#####################################
 	#		INCOMING DATAS HANDLING		#
 	#####################################
@@ -341,7 +341,7 @@ class netIrc_Base {
 		}
 		return $res;
 	}
-	
+
 	protected function __callHandler($type,$Line)
 	{
 		if (is_callable(array($this,'__handle'.$type)))
@@ -616,7 +616,7 @@ class netIrc_Base {
 	{
 		return preg_replace("#\x16|\x1d|\x1f|\x02|\x03(?:\d{1,2}(?:,\d{1,2})?)?#",'',$input);
 	}
-	
+
     /**
      * Count the number of bytes of a given string.
      * Input string is expected to be ASCII or UTF-8 encoded.
@@ -641,27 +641,27 @@ class netIrc_Base {
 				case (($ord_var_c >= 0x20) && ($ord_var_c <= 0x7F)):
 					$d++;
 				break;
-				
+
 				case (($ord_var_c & 0xE0) == 0xC0):
 					$d+=2;
 				break;
-				
+
 				case (($ord_var_c & 0xF0) == 0xE0):
 					$d+=3;
 				break;
-				
+
 				case (($ord_var_c & 0xF8) == 0xF0):
 					$d+=4;
 				break;
-				
+
 				case (($ord_var_c & 0xFC) == 0xF8):
 					$d+=5;
 				break;
-				
+
 				case (($ord_var_c & 0xFE) == 0xFC):
 					$d+=6;
 				break;
-				
+
 				default:
 					$d++;
 			}
