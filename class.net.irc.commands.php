@@ -70,6 +70,15 @@ class netIrc_Commands extends netIrc_Base {
 		$this->__send('NOTICE '.$target.' :'.$message,$priority);
 		return true;
 	}
+	
+	public function sendPart($channel,$priority = 2)
+	{
+		$channel = trim($channel);
+		if ($channel == '') { return false; }
+
+		$this->__send('PART '.$channel,$priority);
+		return true;
+	}
 
 	public function sendPrivmsg($target,$message,$priority = 3)
 	{
@@ -92,7 +101,7 @@ class netIrc_Commands extends netIrc_Base {
 		return true;
 	}
 
-	public function sendRaw($raw,$priority = 3)
+	public function sendRaw($raw,$priority = 1)
 	{
 		if (trim($raw) == '') { return false; }
 
