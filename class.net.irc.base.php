@@ -165,7 +165,7 @@ class netIrc_Base {
 		}
 		return false;
 	}
-	
+
 	public function getMyself()
 	{
 		return $this->ircUsers[0];
@@ -180,7 +180,7 @@ class netIrc_Base {
 		$this->ircLoginSent = false;
 		$this->ircChannels = array();
 		$this->ircUsers = array();
-		
+
 		unset($this->netSocketIterator);
 		unset($this->netSocket);
 
@@ -537,6 +537,13 @@ class netIrc_Base {
 	#		VARIOUS HELPERS		#
 	#############################
 
+	/**
+	* Check if a string is a valid IRC mask (nick!ident@host)
+	*
+	* @param string $in The string to check
+	* @param string $transform Tell if the function should return a bool or an array/string
+	* @return mixed
+	*/
 	public function isMask($in,$transform = false)
 	{
 		$in = trim($in);
@@ -560,6 +567,13 @@ class netIrc_Base {
 		return $res;
 	}
 
+	/**
+	* Check if a given user is on a specified channel
+	*
+	* @param string $_nick The nick to check
+	* @param string $_channel The channel so check is $_nick is on
+	* @return bool True is $_nick is on $_channel, false else
+	*/
 	public function isOn($_nick,$_channel)
 	{
 		if ($this->getChannelUser($_channel,$_nick) === false)
@@ -569,6 +583,12 @@ class netIrc_Base {
 		return true;
 	}
 
+	/**
+	* Return the nick from an IRC mask (nick!ident@host)
+	*
+	* @param string $in An IRC mask
+	* @return string The corresponding nick
+	*/
 	public function mask2nick($in)
 	{
 		$in = trim($in);
@@ -580,6 +600,12 @@ class netIrc_Base {
 		} else { return false; }
 	}
 
+	/**
+	* Return the ident from an IRC mask (nick!ident@host)
+	*
+	* @param string $in An IRC mask
+	* @return string The corresponding ident
+	*/
 	public function mask2ident($in)
 	{
 		// ab!cd@ef
@@ -593,6 +619,12 @@ class netIrc_Base {
 		} else { return false; }
 	}
 
+	/**
+	* Return the hostname from an IRC mask (nick!ident@host)
+	*
+	* @param string $in An IRC mask
+	* @return string The corresponding host
+	*/
 	public function mask2host($in)
 	{
 		$in = trim($in);
@@ -604,40 +636,41 @@ class netIrc_Base {
 		} else { return false; }
 	}
 
+
+	/**
+	* Verify is an IRC mask match another
+	*
+	* @param string $mask The mask to match
+	* @param string $reg The matching expression, accepts * wildcard
+	* @return bool
+	*/
 	public function matchMask($mask,$reg)
 	{
 		return preg_match('/'.str_replace('\*','(.+)',preg_quote($reg,'/')).'/',$mask);
 	}
 
-	/*
-	* IRC Special Chars :
-	* 	CTCP delimiter // We don't strip it, used to detect CTCPs and ACTIONs
-	* 	Bold
-	* 	Colors
-	* 	Reverse
-	* 	Underlined
-	* 	Italic
+	/**
+	* Strip mIRC color codes from a string.
 	*
-	* Original regex: (don't remember where it came from)
-	* #\x0f|\x1f|\x02|\x03(?:\d{1,2}(?:,\d{1,2})?)?#
+	* @param string $input The strip to strip
+	* @return string The stripped text
 	*/
 	public function ircStripper($input)
 	{
 		return preg_replace("#\x16|\x1d|\x1f|\x02|\x03(?:\d{1,2}(?:,\d{1,2})?)?#",'',$input);
 	}
 
-    /**
-     * Count the number of bytes of a given string.
-     * Input string is expected to be ASCII or UTF-8 encoded.
-     * Warning: the function doesn't return the number of chars
-     * in the string, but the number of bytes.
-     *
-     * From http://fr.php.net/manual/function.strlen.php#72274
-     *
-     * @param string $str The string to compute number of bytes
-     *
-     * @return The length in bytes of the given string.
-     */
+	/**
+	* Count the number of bytes of a given string.
+	* Input string is expected to be ASCII or UTF-8 encoded.
+	* Warning: the function doesn't return the number of chars
+	* in the string, but the number of bytes.
+	*
+	* From http://fr.php.net/manual/function.strlen.php#72274
+	*
+	* @param string $str The string to compute number of bytes
+	* @return integer The length in bytes of the given string.
+	*/
 	public function strBytesCounter($str)
 	{
 		$strlen_var = strlen($str);

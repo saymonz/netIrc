@@ -71,7 +71,7 @@ class netIrc_Commands extends netIrc_Base {
 		return true;
 	}
 	
-	public function sendPart($channel,$priority = 2)
+	public function sendPart($channel,$priority = 4)
 	{
 		$channel = trim($channel);
 		if ($channel == '') { return false; }
