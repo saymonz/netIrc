@@ -330,7 +330,7 @@ class netIrc_Handlers extends netIrc_Commands {
 						if (in_array($mode,$this->ircNickPrefixes)) // mode utilisateur préfixé
 						{
 							$ChannelUser = $this->getChannelUser($Line->target,array_shift($Line->args));
-							$ChannelUser->modes = $this->__modeChange($ChannelUser->modes,$mode,$m);
+							$ChannelUser->modes = $this->modeChange($ChannelUser->modes,$mode,$m);
 						} else
 						{
 							foreach ($this->ircChannelModes as $k => $v)
@@ -359,7 +359,7 @@ class netIrc_Handlers extends netIrc_Commands {
 									} else
 									{
 										$ChannelUser = $this->getChannelUser($Line->target,$m_target);
-										$ChannelUser->modes = $this->__modeChange($ChannelUser->modes,$mode,$m);
+										$ChannelUser->modes = $this->modeChange($ChannelUser->modes,$mode,$m);
 									}
 								break;
 
