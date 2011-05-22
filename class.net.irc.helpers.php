@@ -218,4 +218,5 @@ class netIrc_Helpers extends netIrc_Base {
 		}
 		return $d;
 	}
+}
 ?>
