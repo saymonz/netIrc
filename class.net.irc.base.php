@@ -18,8 +18,8 @@
 
 class netIrc_Base {
 	// Clearbricks' netSocket
-	public $netSocket = null;			# Instance of netSocket
-	public $netSocketIterator = null;	# Instance of netSocketIterator
+	protected $netSocket = null;			# Instance of netSocket
+	protected $netSocketIterator = null;	# Instance of netSocketIterator
 
 	// IRC
 	protected $ircHost = null;				# Server host
@@ -57,12 +57,6 @@ class netIrc_Base {
 
 	public function __construct($host,$port,$nick,$ident,$realname)
 	{
-		declare(ticks = 1);
-		register_shutdown_function(array($this,'fatalErrorShutdown'));  
-		pcntl_signal(SIGTERM,array($this, 'sigintShutdown'));  
-		pcntl_signal(SIGINT,array($this, 'sigintShutdown'));
-		stream_set_blocking(STDIN,0);
-		
 		$this->ircHost = $host;
 		$this->ircPort = (int) $port;
 		$this->ircNick = $nick;
@@ -189,32 +183,9 @@ class netIrc_Base {
 
 		unset($this->netSocketIterator);
 		unset($this->netSocket);
-		
-		$counter = 0;
+
 		$this->netSocket = new netSocket($this->ircHost,$this->ircPort);
-		while (true)
-		{
-			try
-			{
-				$this->netSocketIterator = $this->netSocket->open();
-				if ($this->netSocket->isOpen()) { break; }
-			} catch (Exception $e)
-			{
-				$counter++;
-				if ($counter == 3)
-				{
-					$this->__debug('|| INTERNAL: WARNING: Connection failed: '.$e->getMessage());
-					$this->__debug('|| INTERNAL: WARNING: Giving up');
-					return false;
-				} else
-				{
-					$this->__debug('|| INTERNAL: WARNING: Connection failed: '.$e->getMessage());
-					$this->__debug('|| INTERNAL: WARNING: Trying again in 30s');
-					sleep(30);	
-				}
-			}
-		}
-		
+		$this->netSocketIterator = $this->netSocket->open();
 		return true;
 	}
 
@@ -236,44 +207,37 @@ class netIrc_Base {
 		$pingerSent = false;
 		$this->ircLastReceived = time();
 
-		while (true)
+		foreach ($this->netSocketIterator as $v)
 		{
-			if (!$this->__checkBuffer())
+			if ($this->__rawReceive($v) || $this->__checkBuffer())
 			{
-				if ($this->netSocket->select(5))
+				$tickerSleep = $tickerSleep / 2;
+				$this->ircLastReceived = time();
+				$pingerSent = false;
+			} else {
+				$tickerSleep += $tickerInc;
+				if ($this->ircLoggedIn)
 				{
-					$this->__rawReceive($this->netSocketIterator->current());
-					$this->ircLastReceived = time();
-				}
-			}
-				
-			if ($this->ircLoggedIn)
-			{
-				if ((time() - $this->ircLastReceived) >= 30 && !$pingerSent)
-				{
-					$this->__debug('|| INTERNAL: Nothing happened since 30s, pinging myself...');
-					$this->sendCtcpReq($this->ircNick,'PING '.time(),0);
-				}
+					if ((time() - $this->ircLastReceived) >= 30 && !$pingerSent)
+					{
+						$this->__debug('|| INTERNAL: Nothing happened since 30s, pinging myself...');
+						$this->sendCtcpReq($this->ircNick,'PING '.time(),0);
+						$pingerSent = true;
+					}
 
-				if ((time() - $this->ircLastReceived) >= 35) {
-					$this->__debug('|| INTERNAL: WARNING: Seems we\'re not connected... restarting...');
-					if ($this->ircReconnect) { $this->connect(); } else { break; }
+					if ((time() - $this->ircLastReceived) >= 35) {
+						$this->__debug('|| INTERNAL: WARNING: Seems we\'re not connected... restarting...');
+						if ($this->ircReconnect) { $this->connect(); } else { break; }
+					}
 				}
 			}
+
+			if ($tickerSleep <= $tickerMin) { $tickerSleep = $tickerMin; }
+			if ($tickerSleep >= $tickerMax) { $tickerSleep = $tickerMax; }
+			//if (!$this->ircLoggedIn) { $tickerSleep = 10000; }
+			if ($this->ircLoggedIn) { usleep($tickerSleep); }
 
 			if ($this->loopBreak) { $this->loopBreak = false; break; }
-			
-			$line = trim(fgets(STDIN));
-			if ($line != '') {
-				if ($line == '::DIE')
-				{
-					$this->deconnect('Requested in STDIN.');
-				} else
-				{
-					$this->sendRaw($line,0);
-				}
-			}
-			$this->netSocketIterator->next();
 		}
 	}
 
@@ -281,7 +245,7 @@ class netIrc_Base {
 	#		INCOMING DATAS HANDLING		#
 	#####################################
 
-	protected function __rawReceive($Line)
+	protected function __rawReceive(&$Line)
 	{
 		$parsed = $this->__ircParser($Line);
 		if (!$parsed) { return false; }
