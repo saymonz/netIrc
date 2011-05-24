@@ -231,6 +231,11 @@ class netIrc_Handlers extends netIrc_Commands {
 		}
 	}
 
+	protected function __handle422($Line) // Motd missing
+	{
+		$this->__callHandler('376',$Line);
+	}
+
 	protected function __handle433($Line) // Nickname already in use
 	{
 		if (!$this->ircLoggedIn)
@@ -262,8 +267,10 @@ class netIrc_Handlers extends netIrc_Commands {
 	{
 		if ($this->ircReconnect)
 		{
-			$this->connect();
-			$this->listen();
+			if ($this->connect())
+			{
+				$this->listen();
+			}
 		}
 		$this->loopBreak = true;
 	}
