@@ -58,11 +58,10 @@ class netIrc_Base {
 	public function __construct($host,$port,$nick,$ident,$realname)
 	{
 		declare(ticks = 1);
-		register_shutdown_function(array($this,'fatalErrorShutdown'));  
-		pcntl_signal(SIGTERM,array($this, 'sigintShutdown'));  
-		pcntl_signal(SIGINT,array($this, 'sigintShutdown'));
+		pcntl_signal(SIGTERM,array($this, '__sigHandler'));
+		pcntl_signal(SIGINT,array($this, '__sigHandler'));
 		stream_set_blocking(STDIN,0);
-		
+
 		$this->ircHost = $host;
 		$this->ircPort = (int) $port;
 		$this->ircNick = $nick;
@@ -189,7 +188,7 @@ class netIrc_Base {
 
 		unset($this->netSocketIterator);
 		unset($this->netSocket);
-		
+
 		$counter = 0;
 		$this->netSocket = new netSocket($this->ircHost,$this->ircPort);
 		while (true)
@@ -210,11 +209,11 @@ class netIrc_Base {
 				{
 					$this->__debug('|| INTERNAL: WARNING: Connection failed: '.$e->getMessage());
 					$this->__debug('|| INTERNAL: WARNING: Trying again in 30s');
-					sleep(30);	
+					sleep(30);
 				}
 			}
 		}
-		
+
 		return true;
 	}
 
@@ -230,14 +229,9 @@ class netIrc_Base {
 
 	public function listen()
 	{
-		$tickerSleep = $tickerMin = 100000;
-		$tickerMax = 500000;
-		$tickerInc = 50000;
-		$pingerSent = false;
-		$this->ircLastReceived = time();
-
 		while (true)
 		{
+			// Send & receive datas...
 			if (!$this->__checkBuffer())
 			{
 				if ($this->netSocket->select(5))
@@ -246,32 +240,48 @@ class netIrc_Base {
 					$this->ircLastReceived = time();
 				}
 			}
-				
+
+			// Stayin' alive...
 			if ($this->ircLoggedIn)
 			{
-				if ((time() - $this->ircLastReceived) >= 30 && !$pingerSent)
+				if ((time() - $this->ircLastReceived) >= 30)
 				{
 					$this->__debug('|| INTERNAL: Nothing happened since 30s, pinging myself...');
 					$this->sendCtcpReq($this->ircNick,'PING '.time(),0);
 				}
 
 				if ((time() - $this->ircLastReceived) >= 35) {
-					$this->__debug('|| INTERNAL: WARNING: Seems we\'re not connected... restarting...');
-					if ($this->ircReconnect) { $this->connect(); } else { break; }
+					$this->__debug('|| INTERNAL: WARNING: Seems we\'re not connected...');
+					if ($this->ircReconnect)
+					{
+						$this->__debug('|| INTERNAL: Trying to re-establish connection...');
+						if ($this->connect())
+						{
+							$this->listen();
+						}
+					}
+					$this->loopBreak = true;
 				}
 			}
 
-			if ($this->loopBreak) { $this->loopBreak = false; break; }
-			
-			$line = trim(fgets(STDIN));
-			if ($line != '') {
+			// Read from STDIN...
+			$stdin = trim(fgets(STDIN));
+			if ($stdin != '') {
 				if ($line == '::DIE')
 				{
 					$this->deconnect('Requested in STDIN.');
 				} else
 				{
-					$this->sendRaw($line,0);
+					$this->sendRaw($stdin,0);
 				}
+			}
+
+			// Check if we should break the loop...
+			if ($this->loopBreak)
+			{
+				$this->__debug('|| INTERNAL: Ending loop...');
+				$this->loopBreak = false;
+				break;
 			}
 			$this->netSocketIterator->next();
 		}
@@ -545,6 +555,22 @@ class netIrc_Base {
 		if (count($User->channels) === 0)
 		{
 			$this->__deleteUser($User->nick);
+		}
+	}
+
+	#####################################
+	#		SYSTEM SIGNALS HANDLING		#
+	#####################################
+
+	public function __sigHandler($signal)
+	{
+		if ($signal === SIGINT) { $sig = 'SIGINT'; }
+		if ($signal === SIGTERM) { $sig = 'SIGTERM'; }
+
+		if (isset($sig))
+		{
+			$this->__debug('|| INTERNAL: FATAL: Received '.$sig);
+			$this->deconnect('Received '.$sig);
 		}
 	}
 }

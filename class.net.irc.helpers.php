@@ -218,29 +218,5 @@ class netIrc_Helpers extends netIrc_Base {
 		}
 		return $d;
 	}
-	
-
-	private function shutdown($msg)
-	{
-		$this->__debug('|| INTERNAL: FATAL: '.$msg);
-		$this->deconnect($msg);
-	}
-
-	public function fatalErrorShutdown()
-	{
-		$lastError = error_get_last();
-		if (!is_null($lastError) && $lastError['type'] === E_ERROR)
-		{
-			$this->shutdown('Fatal error.');
-		}
-	}
-
-	public function sigintShutdown($signal)
-	{
-		if ($signal === SIGINT) { $sig = 'SIGINT'; }
-		if ($signal === SIGTERM) { $sig = 'SIGTERM'; }
-		
-		if (isset($sig)) { $this->shutdown('Received '.$sig.'.'); }
-	}
 }
 ?>

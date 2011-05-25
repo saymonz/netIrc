@@ -70,7 +70,7 @@ class netIrc_Commands extends netIrc_Helpers {
 		$this->__send('NOTICE '.$target.' :'.$message,$priority);
 		return true;
 	}
-	
+
 	public function sendPart($channel,$priority = 4)
 	{
 		$channel = trim($channel);
