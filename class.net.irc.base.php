@@ -200,14 +200,13 @@ class netIrc_Base {
 			} catch (Exception $e)
 			{
 				$counter++;
+				$this->__debug('|| INTERNAL: WARNING: Connection failed: '.$e->getMessage());
 				if ($counter == 3)
 				{
-					$this->__debug('|| INTERNAL: WARNING: Connection failed: '.$e->getMessage());
 					$this->__debug('|| INTERNAL: WARNING: Giving up');
 					return false;
 				} else
 				{
-					$this->__debug('|| INTERNAL: WARNING: Connection failed: '.$e->getMessage());
 					$this->__debug('|| INTERNAL: WARNING: Trying again in 30s');
 					sleep(30);
 				}
@@ -229,12 +228,13 @@ class netIrc_Base {
 
 	public function listen()
 	{
+		$this->__debug('|| INTERNAL: Entering loop...');
 		while (true)
 		{
 			// Send & receive datas...
 			if (!$this->__checkBuffer())
 			{
-				if ($this->netSocket->select(5))
+				if (@$this->netSocket->select(5))
 				{
 					$this->__rawReceive($this->netSocketIterator->current());
 					$this->ircLastReceived = time();
@@ -260,6 +260,7 @@ class netIrc_Base {
 							$this->listen();
 						}
 					}
+					$this->__debug('|| INTERNAL: We shloud not reconnect, ending...');
 					$this->loopBreak = true;
 				}
 			}
@@ -267,9 +268,9 @@ class netIrc_Base {
 			// Read from STDIN...
 			$stdin = trim(fgets(STDIN));
 			if ($stdin != '') {
-				if ($line == '::DIE')
+				if ($stdin == '::DIE')
 				{
-					$this->deconnect('Requested in STDIN.');
+					$this->deconnect('Received STDIN::DIE');
 				} else
 				{
 					$this->sendRaw($stdin,0);
@@ -279,12 +280,12 @@ class netIrc_Base {
 			// Check if we should break the loop...
 			if ($this->loopBreak)
 			{
-				$this->__debug('|| INTERNAL: Ending loop...');
 				$this->loopBreak = false;
 				break;
 			}
 			$this->netSocketIterator->next();
 		}
+		$this->__debug('|| INTERNAL: Ending loop...');
 	}
 
 	#####################################
