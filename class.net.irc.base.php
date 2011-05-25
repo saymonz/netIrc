@@ -235,6 +235,7 @@ class netIrc_Base {
 						$_stream = array_search($_v,$_streams);
 						if ($_stream == 'irc')
 						{
+							$this->netSocketIterator->next();
 							$this->__rawReceive($this->netSocketIterator->current());
 							$this->ircLastReceived = time();
 						} elseif ($_stream == 'stdin')
@@ -285,7 +286,6 @@ class netIrc_Base {
 				$this->loopBreak = false;
 				break;
 			}
-			$this->netSocketIterator->next();
 		}
 		$this->__debug('|| INTERNAL: Ending loop...');
 	}
