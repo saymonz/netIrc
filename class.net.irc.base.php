@@ -22,13 +22,13 @@ class netIrc_Base {
 	public $netSocketIterator = null;	# Instance of netSocketIterator
 
 	// IRC
-	protected $ircHost = null;				# Server host
-	protected $ircPort = null;				# Server port
-	protected $ircNick = null;				# Nickname used
-	protected $ircIdent = null;				# Ident used
-	protected $ircRealname = null;			# Realname used
-	protected $ircChannels = array();		# Channels storage
 	protected $ircChannelPrefixes = null;	# Channel prefixes
+	protected $ircChannels = array();		# Channels storage
+	protected $ircHost = null;				# Server host
+	protected $ircIdent = null;				# Ident used
+	protected $ircNick = null;				# Nickname used
+	protected $ircPort = null;				# Server port
+	protected $ircRealname = null;			# Realname used
 	protected $ircUsers = array();			# Users storage
 	protected $ircMotd = null;				# Server MOTD
 	protected $ircLoggedIn = false;			# Connected or not
@@ -39,17 +39,11 @@ class netIrc_Base {
 	protected $ircLastReceived = null;		# Last received time
 	protected $ircLoginSent = false;		# Have we send the connection infos?
 	protected $ircReconnect = true;			# Shoul the class automatically reconnect to IRC?
-	protected $loopBreak = false;
 
 	// Internal
 	protected $eventHandlers = array();		# Event handlers
 	protected $debugEnabled = true;			# Debug to stdout or not
-
-	// Ticker
-	protected $tickerInterval = 0;			# Actual ticker interval
-	protected $tickerMax = 500000;			# Max ticker interval
-	protected $tickerMin = 10000;			# Min ticker interval
-	protected $tickerInc = 10000;			# Ticker incrementation
+	protected $loopBreak = false;
 
 	#####################################
 	#		CONSTRUCTOR/DESTRUCTOR		#
@@ -234,10 +228,30 @@ class netIrc_Base {
 			// Send & receive datas...
 			if (!$this->__checkBuffer())
 			{
-				if (@$this->netSocket->select(5))
+				$_r = $_streams = array('irc' => $this->netSocket->getHandle(),'stdin' => STDIN);
+				if (@stream_select($_r,$_w = null,$_e = null,5))
 				{
-					$this->__rawReceive($this->netSocketIterator->current());
-					$this->ircLastReceived = time();
+					foreach ($_r as $_v) {
+						$_stream = array_search($_v,$_streams);
+						if ($_stream == 'irc')
+						{
+							$this->__rawReceive($this->netSocketIterator->current());
+							$this->ircLastReceived = time();
+						} elseif ($_stream == 'stdin')
+						{
+							$stdin = trim(fgets(STDIN));
+							if ($stdin != '') {
+								if ($stdin == '::DIE')
+								{
+									$this->deconnect('Received STDIN::DIE');
+								} else
+								{
+									$this->sendRaw($stdin,0);
+								}
+							}
+						}
+					}
+
 				}
 			}
 
@@ -262,18 +276,6 @@ class netIrc_Base {
 					}
 					$this->__debug('|| INTERNAL: We shloud not reconnect, ending...');
 					$this->loopBreak = true;
-				}
-			}
-
-			// Read from STDIN...
-			$stdin = trim(fgets(STDIN));
-			if ($stdin != '') {
-				if ($stdin == '::DIE')
-				{
-					$this->deconnect('Received STDIN::DIE');
-				} else
-				{
-					$this->sendRaw($stdin,0);
 				}
 			}
 
