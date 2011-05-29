@@ -223,6 +223,8 @@ class netIrc_Base {
 	public function listen()
 	{
 		$this->__debug('|| INTERNAL: Entering loop...');
+		$_StdIn = STDIN;
+		$StdIn = new netSocketIterator($_StdIn);
 		while (true)
 		{
 			// Send & receive datas...
@@ -240,16 +242,7 @@ class netIrc_Base {
 							$this->ircLastReceived = time();
 						} elseif ($_stream == 'stdin')
 						{
-							$stdin = trim(fgets(STDIN));
-							if ($stdin != '') {
-								if ($stdin == '::DIE')
-								{
-									$this->deconnect('Received STDIN::DIE');
-								} else
-								{
-									$this->sendRaw($stdin,0);
-								}
-							}
+							$this->__readStdin($StdIn->current());
 						}
 					}
 
@@ -294,6 +287,15 @@ class netIrc_Base {
 	#		INCOMING DATAS HANDLING		#
 	#####################################
 
+	protected function __readStdin($Line)
+	{
+		$Line = trim($Line);
+		if ($Line === '') { return false; }
+		
+		if ($Line === '::DIE') { $this->deconnect('Received STDIN::DIE'); }
+		else { $this->sendRaw($Line,0); }
+	}
+	
 	protected function __rawReceive($Line)
 	{
 		$parsed = $this->__ircParser($Line);
