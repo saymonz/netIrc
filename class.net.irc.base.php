@@ -44,6 +44,14 @@ class netIrc_Base {
 	protected $eventHandlers = array();		# Event handlers
 	protected $debugEnabled = true;			# Debug to stdout or not
 	protected $loopBreak = false;
+	
+	// Bucket pacing
+	protected $bucketLastSent;
+	protected $bucketMaxBytes = 512;
+	protected $bucketMaxTime = 3;
+	protected $bucketQueue;
+	protected $bucketWaiting = 5;
+	protected $bucketCapacity = 512;
 
 	#####################################
 	#		CONSTRUCTOR/DESTRUCTOR		#
@@ -227,26 +235,24 @@ class netIrc_Base {
 		$StdIn = new netSocketIterator($_StdIn);
 		while (true)
 		{
-			// Send & receive datas...
-			if (!$this->__checkBuffer())
+			$this->__checkBuffer();
+			
+			$_r = $_streams = array('irc' => $this->netSocket->getHandle(),'stdin' => STDIN);
+			if (@stream_select($_r,$_w = null,$_e = null,$this->bucketWaiting))
 			{
-				$_r = $_streams = array('irc' => $this->netSocket->getHandle(),'stdin' => STDIN);
-				if (@stream_select($_r,$_w = null,$_e = null,5))
-				{
-					foreach ($_r as $_v) {
-						$_stream = array_search($_v,$_streams);
-						if ($_stream == 'irc')
-						{
-							$this->netSocketIterator->next();
-							$this->__rawReceive($this->netSocketIterator->current());
-							$this->ircLastReceived = time();
-						} elseif ($_stream == 'stdin')
-						{
-							$this->__readStdin($StdIn->current());
-						}
+				foreach ($_r as $_v) {
+					$_stream = array_search($_v,$_streams);
+					if ($_stream == 'irc')
+					{
+						$this->netSocketIterator->next();
+						$this->__rawReceive($this->netSocketIterator->current());
+						$this->ircLastReceived = time();
+					} elseif ($_stream == 'stdin')
+					{
+						$this->__readStdin($StdIn->current());
 					}
-
 				}
+
 			}
 
 			// Stayin' alive...
@@ -437,6 +443,7 @@ class netIrc_Base {
 	{
 		$Line = trim(text::toUTF8($Line));
 		if ($Line == null) { return; }
+		$Line .= "\n";
 
 		if (!is_numeric($priority) || $priority < 0 || $priority > 5)
 		{
@@ -445,24 +452,75 @@ class netIrc_Base {
 
 		if ($priority == 0)
 		{
-			//$this->__debug('|| INTERNAL: Sending '.$this->strBytesCounter($Line."\n").'bytes ('.strlen($Line."\n").'chars)');
-			$this->__debug('>> '.$Line);
-			$this->netSocket->write($Line."\n");
+		//	$this->__debug('|| INTERNAL: Sending '.$this->strBytesCounter($Line).'bytes ('.strlen($Line).'chars)');
+			$this->__debug('>> '.trim($Line));
+			$this->netSocket->write($Line);
 		} else { array_push($this->ircBuffers[$priority],$Line); }
+	}
+	
+	protected function __bucketCanSend($Line)
+	{
+		$time = time();
+		$bytes = $this->strBytesCounter($Line);
+		$recover = $this->bucketMaxBytes / $this->bucketMaxTime;
+		
+		if (!is_null($this->bucketLastSent)) { $this->bucketCapacity += floor(($time - $this->bucketLastSent) * $recover); }
+		if ($this->bucketCapacity > $this->bucketMaxBytes)
+		{
+			$this->bucketCapacity = $this->bucketMaxBytes;
+		}
+		
+		if ($bytes <= $this->bucketCapacity)
+		{
+			$this->bucketCapacity = $this->bucketCapacity - $bytes;
+			$this->bucketLastSent = $time;
+			$this->bucketWaiting = 0;
+			$this->__debug('|| INTERNAL: BUCKET: Sending '.$bytes.'bytes, now have '.$this->bucketCapacity.'bytes available');
+			return true;
+		}
+		
+		$waiting = ceil($bytes / $recover);
+		
+		$this->bucketQueue = $Line;
+		$this->bucketWaiting = $waiting;
+		$this->__debug('|| INTERNAL: BUCKET: Trying to send '.$bytes.'bytes with only '.$this->bucketCapacity.' available, waiting '.$waiting.'s');
+		return false;
 	}
 
 	protected function __checkBuffer()
 	{
 		if (!$this->ircLoggedIn) { return false; }
-		foreach ($this->ircBuffers as &$buffer)
+		if ($this->bucketQueue !== null)
 		{
-			$Line = array_shift($buffer);
-			if ($Line !== null) { $this->__send($Line,0); return true; }
+			$Line = $this->bucketQueue;
+			$this->bucketQueue = null;
 		}
+		
+		if (!isset($Line))
+		{
+			foreach ($this->ircBuffers as &$buffer)
+			{
+				$Line = array_shift($buffer);
+				if ($Line !== null) { break; }
+			}
+		}
+		
+		if ($Line === null)
+		{
+			$this->bucketWaiting = 5;
+			return false;
+		}
+		
+		if ($this->__bucketCanSend($Line))
+		{
+			$this->__send($Line,0);
+			return true;
+		}
+
 		return false;
 	}
 
-	public function __flushBuffer() { while ($this->__checkBuffer()) { sleep($this->tickerInterval); } }
+	public function __flushBuffer() { while ($this->__checkBuffer()) { continue; } }
 
 	protected function __debug($x)
 	{
