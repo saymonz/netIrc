@@ -18,11 +18,22 @@
 
 class netIrc_Helpers extends netIrc_Base {
 	/**
+	* Strip mIRC color codes from a string.
+	*
+	* @param string $input The strip to strip
+	* @return string The stripped text
+	*/
+	public function ircStripper($input)
+	{
+		return preg_replace("#\x16|\x1d|\x1f|\x02|\x03(?:\d{1,2}(?:,\d{1,2})?)?#",'',$input);
+	}
+
+	/**
 	* Check if a string is a valid IRC mask (nick!ident@host)
 	*
 	* @param string $in The string to check
 	* @param string $transform Tell if the function should return a bool or an array/string
-	* @return mixed
+	* @return mixed An object representing the informations or a string or a boolean
 	*/
 	public function isMask($in,$transform = false)
 	{
@@ -52,7 +63,7 @@ class netIrc_Helpers extends netIrc_Base {
 	*
 	* @param string $_nick The nick to check
 	* @param string $_channel The channel so check is $_nick is on
-	* @return bool True is $_nick is on $_channel, false else
+	* @return bool True is $_nick is on $_channel or false
 	*/
 	public function isOn($_nick,$_channel)
 	{
@@ -64,19 +75,19 @@ class netIrc_Helpers extends netIrc_Base {
 	}
 
 	/**
-	* Return the nick from an IRC mask (nick!ident@host)
+	* Return the hostname from an IRC mask (nick!ident@host)
 	*
 	* @param string $in An IRC mask
-	* @return string The corresponding nick
+	* @return string The corresponding host or false
 	*/
-	public function mask2nick($in)
+	public function mask2host($in)
 	{
 		$in = trim($in);
-		$pos = strpos($in,'!');
+		$pos = strpos($in,'@');
 
 		if ($pos !== false)
 		{
-			return substr($in,0,$pos);
+			return substr($in,$pos+1);
 		} else { return false; }
 	}
 
@@ -84,7 +95,7 @@ class netIrc_Helpers extends netIrc_Base {
 	* Return the ident from an IRC mask (nick!ident@host)
 	*
 	* @param string $in An IRC mask
-	* @return string The corresponding ident
+	* @return string The corresponding ident or false
 	*/
 	public function mask2ident($in)
 	{
@@ -100,20 +111,32 @@ class netIrc_Helpers extends netIrc_Base {
 	}
 
 	/**
-	* Return the hostname from an IRC mask (nick!ident@host)
+	* Return the nick from an IRC mask (nick!ident@host)
 	*
 	* @param string $in An IRC mask
-	* @return string The corresponding host
+	* @return string The corresponding nick or false
 	*/
-	public function mask2host($in)
+	public function mask2nick($in)
 	{
 		$in = trim($in);
-		$pos = strpos($in,'@');
+		$pos = strpos($in,'!');
 
 		if ($pos !== false)
 		{
-			return substr($in,$pos+1);
+			return substr($in,0,$pos);
 		} else { return false; }
+	}
+
+	/**
+	* Verify is an IRC mask match another
+	*
+	* @param string $mask The mask to match
+	* @param string $reg The matching expression, accepts * wildcard
+	* @return bool
+	*/
+	public function matchMask($mask,$reg)
+	{
+		return preg_match('/'.str_replace('\*','(.+)',preg_quote($reg,'/')).'/',$mask);
 	}
 
 	/**
@@ -146,29 +169,6 @@ class netIrc_Helpers extends netIrc_Base {
 	}
 
 	/**
-	* Verify is an IRC mask match another
-	*
-	* @param string $mask The mask to match
-	* @param string $reg The matching expression, accepts * wildcard
-	* @return bool
-	*/
-	public function matchMask($mask,$reg)
-	{
-		return preg_match('/'.str_replace('\*','(.+)',preg_quote($reg,'/')).'/',$mask);
-	}
-
-	/**
-	* Strip mIRC color codes from a string.
-	*
-	* @param string $input The strip to strip
-	* @return string The stripped text
-	*/
-	public function ircStripper($input)
-	{
-		return preg_replace("#\x16|\x1d|\x1f|\x02|\x03(?:\d{1,2}(?:,\d{1,2})?)?#",'',$input);
-	}
-
-	/**
 	* Count the number of bytes of a given string.
 	* Input string is expected to be ASCII or UTF-8 encoded.
 	* Warning: the function doesn't return the number of chars
@@ -176,16 +176,16 @@ class netIrc_Helpers extends netIrc_Base {
 	*
 	* From http://fr.php.net/manual/function.strlen.php#72274
 	*
-	* @param string $str The string to compute number of bytes
+	* @param string $in The string to compute number of bytes
 	* @return integer The length in bytes of the given string.
 	*/
-	public function strBytesCounter($str)
+	public function strBytesCounter($in)
 	{
-		$strlen_var = strlen($str);
+		$inlen_var = strlen($in);
 		$d = 0;
-		for ($c = 0; $c < $strlen_var; ++$c)
+		for ($c = 0; $c < $inlen_var; ++$c)
 		{
-			$ord_var_c = ord($str{$c});
+			$ord_var_c = ord($in{$c});
 			switch (true)
 			{
 				case (($ord_var_c >= 0x20) && ($ord_var_c <= 0x7F)):
