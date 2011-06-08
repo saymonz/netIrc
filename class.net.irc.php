@@ -16,7 +16,8 @@
  *      MA 02110-1301, USA.
  */
 
-class netIrc extends netIrc_Handlers {
+class netIrc extends netIrc_Handlers
+{
 	/*
 	 * This class is here just to have a beautiful name for the object.
 	 * By the extends magic, PHP will load:
@@ -33,7 +34,8 @@ class netIrc extends netIrc_Handlers {
 	 */
 }
 
-class netIrc_Line {
+class netIrc_Line
+{
 	public $source;
 	public $command;
 	public $target;
@@ -46,7 +48,8 @@ class netIrc_Line {
 	public $raw;
 }
 
-class netIrc_Channel {
+class netIrc_Channel
+{
 	public $name;
 	public $topic;
 	public $topic_by;
@@ -56,7 +59,8 @@ class netIrc_Channel {
 	public $lists = array();
 }
 
-class netIrc_User {
+class netIrc_User
+{
 	public $nick;
 	public $ident;
 	public $host;
@@ -65,7 +69,8 @@ class netIrc_User {
 	public $channels = array();
 }
 
-class netIrc_ChannelUser {
+class netIrc_ChannelUser
+{
 	public $user;
 	public $modes;
 }

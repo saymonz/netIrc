@@ -16,7 +16,8 @@
  *      MA 02110-1301, USA.
  */
 
-class netIrc_Handlers extends netIrc_Commands {
+class netIrc_Handlers extends netIrc_Commands
+{
 	protected function __handle005($Line)
 	{
 		foreach ($Line->args as $arg)

@@ -15,8 +15,8 @@
  *      Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
  *      MA 02110-1301, USA.
  */
-$__autoload['netIrc']		= dirname(__FILE__).'/class.net.irc.php';
-$__autoload['netIrc_Base']		= dirname(__FILE__).'/class.net.irc.base.php';
+$__autoload['netIrc']				= dirname(__FILE__).'/class.net.irc.php';
+$__autoload['netIrc_Base']			= dirname(__FILE__).'/class.net.irc.base.php';
 $__autoload['netIrc_Commands']		= dirname(__FILE__).'/class.net.irc.commands.php';
 $__autoload['netIrc_Handlers']		= dirname(__FILE__).'/class.net.irc.handlers.php';
 $__autoload['netIrc_Helpers']		= dirname(__FILE__).'/class.net.irc.helpers.php';

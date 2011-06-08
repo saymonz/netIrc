@@ -16,7 +16,8 @@
  *      MA 02110-1301, USA.
  */
 
-class netIrc_Commands extends netIrc_Helpers {
+class netIrc_Commands extends netIrc_Helpers
+{
 	public function sendAction($target,$message,$priority = 3)
 	{
 		$target = trim($target);

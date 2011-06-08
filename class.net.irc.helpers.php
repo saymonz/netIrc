@@ -16,7 +16,8 @@
  *      MA 02110-1301, USA.
  */
 
-class netIrc_Helpers extends netIrc_Base {
+class netIrc_Helpers extends netIrc_Base
+{
 	/**
 	* Strip mIRC color codes from a string.
 	*
@@ -166,6 +167,40 @@ class netIrc_Helpers extends netIrc_Base {
 		}
 
 		return $_modes;
+	}
+
+	public function print_channel($_channel)
+	{
+		$Channel = $this->getChannel($_channel);
+		if (!$Channel instanceof netIrc_Channel) { return false; }
+		$Channel = clone $Channel;
+
+		$_channelusers = array();
+		foreach ($Channel->users as $ChannelUser)
+		{
+			$_channelusers[] = $ChannelUser->user->nick;
+		}
+
+		$Channel->users = $_channelusers;
+		print_r($Channel);
+		return true;
+	}
+
+	public function print_user($_user)
+	{
+		$User = $this->getUser($_user);
+		if (!$User instanceof netIrc_User) { return false; }
+		$User = clone $User;
+
+		$_channels = array();
+		foreach ($User->channels as $Channel)
+		{
+			$_channels[] = $Channel->name;
+		}
+
+		$User->channels = $_channels;
+		print_r($User);
+		return true;
 	}
 
 	/**

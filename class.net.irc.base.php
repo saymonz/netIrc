@@ -16,7 +16,8 @@
  *      MA 02110-1301, USA.
  */
 
-class netIrc_Base extends netSocket {
+class netIrc_Base extends netSocket
+{
 	// Clearbricks' netSocket
 	public $netSocketIterator = null;	# Instance of netSocketIterator
 
@@ -41,7 +42,7 @@ class netIrc_Base extends netSocket {
 	protected $eventHandlers = array();		# Event handlers
 	protected $debugEnabled = true;			# Debug to stdout or not
 	protected $loopBreak = false;
-	
+
 	// Bucket pacing
 	protected $bucketLastSent;
 	protected $bucketMaxBytes = 512;
@@ -64,7 +65,7 @@ class netIrc_Base extends netSocket {
 		$this->ircNick = $nick;
 		$this->ircIdent = $ident;
 		$this->ircRealname = $realname;
-		
+
 		// netSocket vars
 		$this->_host = $host;
 		$this->_port = abs((integer) $port);
@@ -192,9 +193,9 @@ class netIrc_Base extends netSocket {
 
 		unset($this->netSocketIterator);
 		if ($this->isOpen()) { $this->close(); }
-		
+
 		$counter = 0;
-		
+
 		while (true)
 		{
 			try
@@ -237,8 +238,9 @@ class netIrc_Base extends netSocket {
 		$StdIn = new netSocketIterator($_StdIn);
 		while (true)
 		{
+			$this->__debug('|| INTERNAL: Looping!');
 			$this->__checkBuffer();
-			
+
 			$_r = $_streams = array('irc' => $this->_handle,'stdin' => STDIN);
 			if (@stream_select($_r,$_w = null,$_e = null,$this->bucketWaiting))
 			{
@@ -266,7 +268,7 @@ class netIrc_Base extends netSocket {
 					$this->sendCtcpReq($this->ircNick,'PING '.time(),0);
 				}
 
-				if ((time() - $this->ircLastReceived) >= 35) {
+				if ((time() - $this->ircLastReceived) >= 60) {
 					$this->__debug('|| INTERNAL: WARNING: Seems we\'re not connected...');
 					if ($this->ircReconnect)
 					{
@@ -299,11 +301,11 @@ class netIrc_Base extends netSocket {
 	{
 		$Line = trim($Line);
 		if ($Line === '') { return false; }
-		
+
 		if ($Line === '::DIE') { $this->deconnect('Received STDIN::DIE'); }
 		else { $this->sendRaw($Line,0); }
 	}
-	
+
 	protected function __rawReceive($Line)
 	{
 		$parsed = $this->__ircParser($Line);
@@ -459,19 +461,19 @@ class netIrc_Base extends netSocket {
 			$this->write($Line);
 		} else { array_push($this->ircBuffers[$priority],$Line); }
 	}
-	
-	protected function __bucketCanSend($Line)
+
+	protected function __canSend($Line)
 	{
 		$time = time();
 		$bytes = $this->strBytesCounter($Line);
 		$recover = $this->bucketMaxBytes / $this->bucketMaxTime;
-		
+
 		if (!is_null($this->bucketLastSent)) { $this->bucketCapacity += floor(($time - $this->bucketLastSent) * $recover); }
 		if ($this->bucketCapacity > $this->bucketMaxBytes)
 		{
 			$this->bucketCapacity = $this->bucketMaxBytes;
 		}
-		
+
 		if ($bytes <= $this->bucketCapacity)
 		{
 			$this->bucketCapacity = $this->bucketCapacity - $bytes;
@@ -480,9 +482,9 @@ class netIrc_Base extends netSocket {
 			$this->__debug('|| INTERNAL: BUCKET: Sending '.$bytes.'bytes, now have '.$this->bucketCapacity.'bytes available');
 			return true;
 		}
-		
+
 		$waiting = ceil($bytes / $recover);
-		
+
 		$this->bucketQueue = $Line;
 		$this->bucketWaiting = $waiting;
 		$this->__debug('|| INTERNAL: BUCKET: Trying to send '.$bytes.'bytes with only '.$this->bucketCapacity.' available, waiting '.$waiting.'s');
@@ -496,9 +498,7 @@ class netIrc_Base extends netSocket {
 		{
 			$Line = $this->bucketQueue;
 			$this->bucketQueue = null;
-		}
-		
-		if (!isset($Line))
+		} else
 		{
 			foreach ($this->ircBuffers as &$buffer)
 			{
@@ -506,20 +506,22 @@ class netIrc_Base extends netSocket {
 				if ($Line !== null) { break; }
 			}
 		}
-		
-		if ($Line === null)
+
+		if ($Line !== null)
 		{
-			$this->bucketWaiting = 5;
+			if ($this->__canSend($Line))
+			{
+				$this->__send($Line,0);
+				return true;
+			} else
+			{
+				return false;
+			}
+		} else
+		{
+			$this->bucketWaiting = 30;
 			return false;
 		}
-		
-		if ($this->__bucketCanSend($Line))
-		{
-			$this->__send($Line,0);
-			return true;
-		}
-
-		return false;
 	}
 
 	public function __flushBuffer() { while ($this->__checkBuffer()) { continue; } }
@@ -562,37 +564,6 @@ class netIrc_Base extends netSocket {
 		$this->__deleteUsers();
 	}
 
-	public function __deleteUsers()
-	{
-		foreach ($this->ircUsers as $User)
-		{
-			if (count($User->channels) === 0)
-			{
-				if ($User->nick != $this->ircNick) { $this->__deleteUser($User->nick); }
-			}
-		}
-	}
-
-	public function __deleteUser($_user)
-	{
-		$User = $this->getUser($_user);
-		if ($User->nick == $this->ircNick) { return; }
-		$User_key = $this->getUser($_user,true);
-		if ($User === false) { return false; }
-
-		foreach ($User->channels as $Channel)
-		{
-			foreach ($Channel->users as $_k => $_ChannelUser)
-			{
-				if ($_ChannelUser->user->nick == $User->nick)
-				{
-					unset($Channel->users[$_k]);
-				}
-			}
-		}
-		unset($this->ircUsers[$User_key]);
-	}
-
 	public function __deleteChannelUser($_channel,$_user)
 	{
 		$Channel = $this->getChannel($_channel);
@@ -622,6 +593,39 @@ class netIrc_Base extends netSocket {
 			$this->__deleteUser($User->nick);
 		}
 	}
+
+	public function __deleteUser($_user)
+	{
+		$User = $this->getUser($_user);
+		if ($User->nick == $this->ircNick) { return; }
+		$User_key = $this->getUser($_user,true);
+		if ($User === false) { return false; }
+
+		foreach ($User->channels as $Channel)
+		{
+			foreach ($Channel->users as $_k => $_ChannelUser)
+			{
+				if ($_ChannelUser->user->nick == $User->nick)
+				{
+					unset($Channel->users[$_k]);
+				}
+			}
+		}
+		unset($this->ircUsers[$User_key]);
+	}
+
+	public function __deleteUsers()
+	{
+		foreach ($this->ircUsers as $User)
+		{
+			if (count($User->channels) === 0)
+			{
+				if ($User->nick != $this->ircNick) { $this->__deleteUser($User->nick); }
+			}
+		}
+	}
+
+
 
 	#####################################
 	#		SYSTEM SIGNALS HANDLING		#
