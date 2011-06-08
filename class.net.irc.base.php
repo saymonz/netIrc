@@ -18,16 +18,13 @@
 
 class netIrc_Base extends netSocket {
 	// Clearbricks' netSocket
-	public $netSocket = null;			# Instance of netSocket
 	public $netSocketIterator = null;	# Instance of netSocketIterator
 
 	// IRC
 	protected $ircChannelPrefixes = null;	# Channel prefixes
 	protected $ircChannels = array();		# Channels storage
-	protected $ircHost = null;				# Server host
 	protected $ircIdent = null;				# Ident used
 	protected $ircNick = null;				# Nickname used
-	protected $ircPort = null;				# Server port
 	protected $ircRealname = null;			# Realname used
 	protected $ircUsers = array();			# Users storage
 	protected $ircMotd = null;				# Server MOTD
@@ -57,19 +54,24 @@ class netIrc_Base extends netSocket {
 	#		CONSTRUCTOR/DESTRUCTOR		#
 	#####################################
 
-	public function __construct($host,$port,$nick,$ident,$realname)
+	public function __construct($host,$port,$ssl,$nick,$ident,$realname)
 	{
+		// Signals handling
 		declare(ticks = 1);
 		pcntl_signal(SIGTERM,array($this, '__sigHandler'));
 		pcntl_signal(SIGINT,array($this, '__sigHandler'));
-		stream_set_blocking(STDIN,0);
 
-		$this->ircHost = $host;
-		$this->ircPort = (int) $port;
 		$this->ircNick = $nick;
 		$this->ircIdent = $ident;
 		$this->ircRealname = $realname;
+		
+		// netSocket vars
+		$this->_host = $host;
+		$this->_port = abs((integer) $port);
+		if ($ssl) { $this->_transport = 'ssl://'; }
+		$this->_timeout = 30;
 
+		// Internals
 		$this->ircBuffers = range(1,6);
 		foreach ($this->ircBuffers as &$v) { $v = array(); }
 		$this->eventHandlers = array();
@@ -192,9 +194,6 @@ class netIrc_Base extends netSocket {
 		if ($this->isOpen()) { $this->close(); }
 		
 		$counter = 0;
-		$this->_host = $this->ircHost;
-		$this->_port = abs((integer) $this->ircPort);
-		$this->timeout(30);
 		
 		while (true)
 		{
