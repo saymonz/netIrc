@@ -203,7 +203,7 @@ class netIrc_Handlers extends netIrc_Commands {
 	protected function __handle376($Line) // MOTD end
 	{
 		$this->ircLoggedIn = true;
-		$this->netSocket->setBlocking(0);
+		//$this->netSocket->setBlocking(0);
 
 		$this->ircUsers[] = $User = new netIrc_User;
 		$User->nick = $this->ircNick;

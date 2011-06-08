@@ -16,7 +16,7 @@
  *      MA 02110-1301, USA.
  */
 
-class netIrc_Base {
+class netIrc_Base extends netSocket {
 	// Clearbricks' netSocket
 	public $netSocket = null;			# Instance of netSocket
 	public $netSocketIterator = null;	# Instance of netSocketIterator
@@ -189,16 +189,19 @@ class netIrc_Base {
 		$this->ircUsers = array();
 
 		unset($this->netSocketIterator);
-		unset($this->netSocket);
-
+		if ($this->isOpen()) { $this->close(); }
+		
 		$counter = 0;
-		$this->netSocket = new netSocket($this->ircHost,$this->ircPort);
+		$this->_host = $this->ircHost;
+		$this->_port = abs((integer) $this->ircPort);
+		$this->timeout(30);
+		
 		while (true)
 		{
 			try
 			{
-				$this->netSocketIterator = $this->netSocket->open();
-				if ($this->netSocket->isOpen()) { break; }
+				$this->netSocketIterator = $this->open();
+				if ($this->isOpen()) { break; }
 			} catch (Exception $e)
 			{
 				$counter++;
@@ -237,7 +240,7 @@ class netIrc_Base {
 		{
 			$this->__checkBuffer();
 			
-			$_r = $_streams = array('irc' => $this->netSocket->getHandle(),'stdin' => STDIN);
+			$_r = $_streams = array('irc' => $this->_handle,'stdin' => STDIN);
 			if (@stream_select($_r,$_w = null,$_e = null,$this->bucketWaiting))
 			{
 				foreach ($_r as $_v) {
@@ -454,7 +457,7 @@ class netIrc_Base {
 		{
 		//	$this->__debug('|| INTERNAL: Sending '.$this->strBytesCounter($Line).'bytes ('.strlen($Line).'chars)');
 			$this->__debug('>> '.trim($Line));
-			$this->netSocket->write($Line);
+			$this->write($Line);
 		} else { array_push($this->ircBuffers[$priority],$Line); }
 	}
 	
@@ -525,7 +528,7 @@ class netIrc_Base {
 	protected function __debug($x)
 	{
 		if (!$this->debugEnabled) { return false; }
-		if ($this->netSocket instanceof netSocket && $this->netSocket->isOpen())
+		if ($this->isOpen())
 		{
 			$key = $this->netSocketIterator->key();
 		} else {
