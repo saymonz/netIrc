@@ -19,37 +19,36 @@
 class netIrc_Base extends netSocket
 {
 	// Clearbricks' netSocket
-	public $netSocketIterator = null;	# Instance of netSocketIterator
+	public $netSocketIterator = null;		# Instance of netSocketIterator
 
 	// IRC
-	protected $ircChannelPrefixes = null;	# Channel prefixes
-	protected $ircChannels = array();		# Channels storage
-	protected $ircIdent = null;				# Ident used
-	protected $ircNick = null;				# Nickname used
-	protected $ircRealname = null;			# Realname used
-	protected $ircUsers = array();			# Users storage
-	protected $ircMotd = null;				# Server MOTD
-	protected $ircLoggedIn = false;			# Connected or not
-	protected $ircBuffers = null;			# Send queues
-	protected $ircLine = null;				# Last line read from the server
-	protected $ircChannelModes = array();	# Channel modes
-	protected $ircNickPrefixes = array();	# Nicknames prefixes
-	protected $ircLastReceived = null;		# Last received time
-	protected $ircLoginSent = false;		# Have we send the connection infos?
-	protected $ircReconnect = true;			# Shoul the class automatically reconnect to IRC?
+	protected $irc_channel_prefixes;			# Channel prefixes
+	protected $irc_channels = array();		# Channels storage
+	protected $irc_ident;					# Ident used
+	protected $irc_nickname;						# Nickname used
+	protected $irc_realname;					# Realname used
+	protected $irc_users = array();			# Users storage
+	protected $irc_motd;						# Server MOTD
+	protected $irc_logged_in;					# Connected or not
+	protected $irc_buffers;					# Send queues
+	protected $irc_channel_modes = array();	# Channel modes
+	protected $irc_nicknamePrefixes = array();	# Nicknames prefixes
+	protected $irc_last_received_time;				# Last received time
+	protected $irc_login_sent;				# Have we send the connection infos?
+	protected $irc_auto_reconnect = true;			# Should the class automatically reconnect to IRC?
 
 	// Internal
-	protected $eventHandlers = array();		# Event handlers
-	protected $debugEnabled = true;			# Debug to stdout or not
-	protected $loopBreak = false;
+	protected $irc_event_handlers = array();		# Event handlers
+	protected $debug_enabled = true;			# Debug to stdout or not
+	protected $loop_break = false;			# Shall we exit the loop ?
 
 	// Bucket pacing
-	protected $bucketLastSent;
-	protected $bucketMaxBytes = 512;
-	protected $bucketMaxTime = 3;
-	protected $bucketQueue;
-	protected $bucketWaiting = 5;
-	protected $bucketCapacity = 512;
+	protected $irc_last_sent_time;
+	protected $irc_max_bytes = 512;
+	protected $irc_max_time = 3;
+	protected $irc_next_out;
+	protected $irc_next_out_waiting = 5;
+	protected $irc_bytes_capacity = 512;
 
 	#####################################
 	#		CONSTRUCTOR/DESTRUCTOR		#
@@ -57,30 +56,30 @@ class netIrc_Base extends netSocket
 
 	public function __construct($host,$port,$ssl,$nick,$ident,$realname)
 	{
+		$this->__debug('|| CORE: Constructing...');
 		// Signals handling
 		declare(ticks = 1);
 		pcntl_signal(SIGTERM,array($this, '__sigHandler'));
 		pcntl_signal(SIGINT,array($this, '__sigHandler'));
 
-		$this->ircNick = $nick;
-		$this->ircIdent = $ident;
-		$this->ircRealname = $realname;
+		$this->irc_nickname = $nick;
+		$this->irc_ident = $ident;
+		$this->irc_realname = $realname;
 
 		// netSocket vars
-		$this->_host = $host;
-		$this->_port = abs((integer) $port);
+		parent::__construct($host,$port,30);
 		if ($ssl) { $this->_transport = 'ssl://'; }
-		$this->_timeout = 30;
 
 		// Internals
-		$this->ircBuffers = range(1,6);
-		foreach ($this->ircBuffers as &$v) { $v = array(); }
-		$this->eventHandlers = array();
+		$this->irc_buffers = range(1,6);
+		foreach ($this->irc_buffers as &$v) { $v = array(); }
+		$this->irc_event_handlers = array();
 	}
 
 	public function __destruct()
 	{
-		// nothing for now
+		$this->__debug('|| CORE: Destructing...');
+		parent::__destruct();
 	}
 
 	#################################
@@ -91,30 +90,30 @@ class netIrc_Base extends netSocket
 	{
 		if (is_callable($callback))
 		{
-			if (!isset($this->eventHandlers[$type]))
+			if (!isset($this->irc_event_handlers[$type]))
 			{
-				$this->eventHandlers[$type] = array();
+				$this->irc_event_handlers[$type] = array();
 			}
 
-			$this->eventHandlers[$type][$name] = array();
-			$this->eventHandlers[$type][$name]['regex'] = $regex;
-			$this->eventHandlers[$type][$name]['callback'] = $callback;
+			$this->irc_event_handlers[$type][$name] = array();
+			$this->irc_event_handlers[$type][$name]['regex'] = $regex;
+			$this->irc_event_handlers[$type][$name]['callback'] = $callback;
 
-			$this->__debug('|| INTERNAL: Adding handler '.$name.' for '.$type);
+			$this->__debug('|| CORE: Adding handler '.$name.' for '.$type);
 			return true;
 		} else
 		{
-			$this->__debug('|| INTERNAL: WARNING: invalid callback '.$name.' for '.$type);
+			$this->__debug('|| CORE: WARNING: invalid callback '.$name.' for '.$type);
 			return false;
 		}
 	}
 
 	public function unregisterHandler($type,$name)
 	{
-		if (isset($this->eventHandlers[$type]) && isset($this->eventHandlers[$type][$name]))
+		if (isset($this->irc_event_handlers[$type]) && isset($this->irc_event_handlers[$type][$name]))
 		{
-			unset($this->eventHandlers[$type][$name]);
-			$this->__debug('|| INTERNAL: Deleting handler '.$name.' for '.$type);
+			unset($this->irc_event_handlers[$type][$name]);
+			$this->__debug('|| CORE: Deleting handler '.$name.' for '.$type);
 			return true;
 		} else
 		{
@@ -126,17 +125,17 @@ class netIrc_Base extends netSocket
 	#		GETTERS		#
 	#####################
 
-	public function getNick() { return $this->ircNick; }
+	public function getNick() { return $this->irc_nickname; }
 
-	public function getMotd() { return $this->ircMotd; }
+	public function getMotd() { return $this->irc_motd; }
 
-	public function getChannels() { return $this->ircChannels; }
+	public function getChannels() { return $this->irc_channels; }
 
-	public function getUsers() { return $this->ircUsers; }
+	public function getUsers() { return $this->irc_users; }
 
 	public function getChannel($_channel,$_key = false)
 	{
-		foreach ($this->ircChannels as $key => $Channel) {
+		foreach ($this->irc_channels as $key => $Channel) {
 			if ($Channel->name == $_channel)
 			{
 				if ($_key) { return $key; }
@@ -148,7 +147,7 @@ class netIrc_Base extends netSocket
 
 	public function getUser($_nick,$_key = false)
 	{
-		foreach ($this->ircUsers as $key => $User) {
+		foreach ($this->irc_users as $key => $User) {
 			if ($User->nick == $_nick)
 			{
 				if ($_key) { return $key; }
@@ -160,7 +159,7 @@ class netIrc_Base extends netSocket
 
 	public function getChannelUser($_channel,$_user,$_key = false)
 	{
-		foreach ($this->ircChannels as $Channel) {
+		foreach ($this->irc_channels as $Channel) {
 			if ($Channel->name == $_channel)
 			{
 				foreach ($Channel->users as $key => $ChannelUser)
@@ -178,18 +177,18 @@ class netIrc_Base extends netSocket
 
 	public function getMyself()
 	{
-		return $this->ircUsers[0];
+		return $this->irc_users[0];
 	}
 
 	#####################################
 	#		CONNECTION MANAGEMENT		#
 	#####################################
 
-	public function connect() {
-		$this->ircLoggedIn = false;
-		$this->ircLoginSent = false;
-		$this->ircChannels = array();
-		$this->ircUsers = array();
+	public function open() {
+		$this->irc_logged_in = false;
+		$this->irc_login_sent = false;
+		$this->irc_channels = array();
+		$this->irc_users = array();
 
 		unset($this->netSocketIterator);
 		if ($this->isOpen()) { $this->close(); }
@@ -200,19 +199,19 @@ class netIrc_Base extends netSocket
 		{
 			try
 			{
-				$this->netSocketIterator = $this->open();
+				$this->netSocketIterator = parent::open();
 				if ($this->isOpen()) { break; }
 			} catch (Exception $e)
 			{
 				$counter++;
-				$this->__debug('|| INTERNAL: WARNING: Connection failed: '.$e->getMessage());
+				$this->__debug('|| CORE: WARNING: Connection failed: '.$e->getMessage());
 				if ($counter == 3)
 				{
-					$this->__debug('|| INTERNAL: WARNING: Giving up');
+					$this->__debug('|| CORE: WARNING: Giving up');
 					return false;
 				} else
 				{
-					$this->__debug('|| INTERNAL: WARNING: Trying again in 30s');
+					$this->__debug('|| CORE: WARNING: Trying again in 30s');
 					sleep(30);
 				}
 			}
@@ -221,10 +220,8 @@ class netIrc_Base extends netSocket
 		return true;
 	}
 
-	public function deconnect($msg = null) {
-		$this->ircReconnect = false;
-		$this->__flushBuffer();
-		$this->sendQuit($msg);
+	public function close() {
+		$this->irc_auto_reconnect = false;
 	}
 
 	#########################
@@ -233,16 +230,16 @@ class netIrc_Base extends netSocket
 
 	public function listen()
 	{
-		$this->__debug('|| INTERNAL: Entering loop...');
+		$this->__debug('|| CORE: Entering loop...');
 		$_StdIn = STDIN;
 		$StdIn = new netSocketIterator($_StdIn);
 		while (true)
 		{
-			$this->__debug('|| INTERNAL: Looping!');
+			$this->__debug('|| CORE: Looping!');
 			$this->__checkBuffer();
 
 			$_r = $_streams = array('irc' => $this->_handle,'stdin' => STDIN);
-			if (@stream_select($_r,$_w = null,$_e = null,$this->bucketWaiting))
+			if (@stream_select($_r,$_w = null,$_e = null,$this->irc_next_out_waiting))
 			{
 				foreach ($_r as $_v) {
 					$_stream = array_search($_v,$_streams);
@@ -250,7 +247,7 @@ class netIrc_Base extends netSocket
 					{
 						$this->netSocketIterator->next();
 						$this->__rawReceive($this->netSocketIterator->current());
-						$this->ircLastReceived = time();
+						$this->irc_last_received_time = time();
 					} elseif ($_stream == 'stdin')
 					{
 						$this->__readStdin($StdIn->current());
@@ -260,37 +257,37 @@ class netIrc_Base extends netSocket
 			}
 
 			// Stayin' alive...
-			if ($this->ircLoggedIn)
+			if ($this->irc_logged_in)
 			{
-				if ((time() - $this->ircLastReceived) >= 30)
+				if ((time() - $this->irc_last_received_time) >= 30)
 				{
-					$this->__debug('|| INTERNAL: Nothing happened since 30s, pinging myself...');
-					$this->sendCtcpReq($this->ircNick,'PING '.time(),0);
+					$this->__debug('|| CORE: Nothing happened since 30s, pinging myself...');
+					$this->sendCtcpReq($this->irc_nickname,'PING '.time(),0);
 				}
 
-				if ((time() - $this->ircLastReceived) >= 60) {
-					$this->__debug('|| INTERNAL: WARNING: Seems we\'re not connected...');
-					if ($this->ircReconnect)
+				if ((time() - $this->irc_last_received_time) >= 60) {
+					$this->__debug('|| CORE: WARNING: Seems we\'re not connected...');
+					if ($this->irc_auto_reconnect)
 					{
-						$this->__debug('|| INTERNAL: Trying to re-establish connection...');
+						$this->__debug('|| CORE: Trying to re-establish connection...');
 						if ($this->connect())
 						{
 							$this->listen();
 						}
 					}
-					$this->__debug('|| INTERNAL: We shloud not reconnect, ending...');
-					$this->loopBreak = true;
+					$this->__debug('|| CORE: We should not reconnect, ending...');
+					$this->loop_break = true;
 				}
 			}
 
 			// Check if we should break the loop...
-			if ($this->loopBreak)
+			if ($this->loop_break)
 			{
-				$this->loopBreak = false;
+				$this->loop_break = false;
 				break;
 			}
 		}
-		$this->__debug('|| INTERNAL: Ending loop...');
+		$this->__debug('|| CORE: Ending loop...');
 	}
 
 	#####################################
@@ -368,7 +365,7 @@ class netIrc_Base extends netSocket
 					$res->command = 'CTCPREP';
 				} else
 				{
-					$this->__debug('|| INTERNAL: WARNING: Unreconized CTCP?');
+					$this->__debug('|| CORE: WARNING: Unreconized CTCP?');
 				}
 			}
 		} elseif (preg_match('#^:(.+)$#U',$in,$match))
@@ -392,7 +389,7 @@ class netIrc_Base extends netSocket
 			$res->message_xt = explode(' ',$match[2]);
 		} else
 		{
-			$this->__debug('|| INTERNAL: FATAL: LINE NOT PARSED!');
+			$this->__debug('|| CORE: FATAL: LINE NOT PARSED!');
 			$this->__debug($in);
 			$this->deconnect('ERROR');
 			exit();
@@ -400,11 +397,11 @@ class netIrc_Base extends netSocket
 
 		if ($res->command === 'NOTICE' && $res->target === 'AUTH')
 		{
-			$res->target = $this->ircNick;
+			$res->target = $this->irc_nickname;
 			$res->command = 'NOTICEAUTH';
 		}
 
-		if (strpos($this->ircChannelPrefixes,substr($res->target,0,1)) !== false)
+		if (strpos($this->irc_channel_prefixes,substr($res->target,0,1)) !== false)
 		{
 			$res->target_ischannel = true;
 		}
@@ -415,24 +412,24 @@ class netIrc_Base extends netSocket
 	{
 		if (is_callable(array($this,'__handle'.$type)))
 		{
-			$this->__debug('|| INTERNAL: Calling internal handler for '.$type);
+			$this->__debug('|| CORE: Calling internal handler for '.$type);
 			call_user_func(array($this,'__handle'.$type),$Line);
 		}
 
-		if (isset($this->eventHandlers[$type]))
+		if (isset($this->irc_event_handlers[$type]))
 		{
-			foreach ($this->eventHandlers[$type] as $k => &$v)
+			foreach ($this->irc_event_handlers[$type] as $k => &$v)
 			{
 				if (is_callable($v['callback']))
 				{
 					if (is_null($v['regex'])|| !isset($Line->message_stripped) || preg_match($v['regex'],$Line->message_stripped))
 					{
-						$this->__debug('|| INTERNAL: Calling external handler '.$k.' for '.$type);
+						$this->__debug('|| CORE: Calling external handler '.$k.' for '.$type);
 						call_user_func($v['callback'],$this,$Line);
 					}
 				} else
 				{
-					$this->__debug('|| INTERNAL: WARNING: invalid callback '.$k.' for '.$type);
+					$this->__debug('|| CORE: WARNING: invalid callback '.$k.' for '.$type);
 				}
 			}
 		}
@@ -456,51 +453,51 @@ class netIrc_Base extends netSocket
 
 		if ($priority == 0)
 		{
-		//	$this->__debug('|| INTERNAL: Sending '.$this->strBytesCounter($Line).'bytes ('.strlen($Line).'chars)');
+		//	$this->__debug('|| CORE: Sending '.$this->strBytesCounter($Line).'bytes ('.strlen($Line).'chars)');
 			$this->__debug('>> '.trim($Line));
 			$this->write($Line);
-		} else { array_push($this->ircBuffers[$priority],$Line); }
+		} else { array_push($this->irc_buffers[$priority],$Line); }
 	}
 
 	protected function __canSend($Line)
 	{
 		$time = time();
 		$bytes = $this->strBytesCounter($Line);
-		$recover = $this->bucketMaxBytes / $this->bucketMaxTime;
+		$recover = $this->irc_max_bytes / $this->irc_max_time;
 
-		if (!is_null($this->bucketLastSent)) { $this->bucketCapacity += floor(($time - $this->bucketLastSent) * $recover); }
-		if ($this->bucketCapacity > $this->bucketMaxBytes)
+		if (!is_null($this->irc_last_sent_time)) { $this->irc_bytes_capacity += floor(($time - $this->irc_last_sent_time) * $recover); }
+		if ($this->irc_bytes_capacity > $this->irc_max_bytes)
 		{
-			$this->bucketCapacity = $this->bucketMaxBytes;
+			$this->irc_bytes_capacity = $this->irc_max_bytes;
 		}
 
-		if ($bytes <= $this->bucketCapacity)
+		if ($bytes <= $this->irc_bytes_capacity)
 		{
-			$this->bucketCapacity = $this->bucketCapacity - $bytes;
-			$this->bucketLastSent = $time;
-			$this->bucketWaiting = 0;
-			$this->__debug('|| INTERNAL: BUCKET: Sending '.$bytes.'bytes, now have '.$this->bucketCapacity.'bytes available');
+			$this->irc_bytes_capacity = $this->irc_bytes_capacity - $bytes;
+			$this->irc_last_sent_time = $time;
+			$this->irc_next_out_waiting = 0;
+			$this->__debug('|| CORE: BUCKET: Sending '.$bytes.'bytes, now have '.$this->irc_bytes_capacity.'bytes available');
 			return true;
 		}
 
 		$waiting = ceil($bytes / $recover);
 
-		$this->bucketQueue = $Line;
-		$this->bucketWaiting = $waiting;
-		$this->__debug('|| INTERNAL: BUCKET: Trying to send '.$bytes.'bytes with only '.$this->bucketCapacity.' available, waiting '.$waiting.'s');
+		$this->irc_next_out = $Line;
+		$this->irc_next_out_waiting = $waiting;
+		$this->__debug('|| CORE: BUCKET: Trying to send '.$bytes.'bytes with only '.$this->irc_bytes_capacity.' available, waiting '.$waiting.'s');
 		return false;
 	}
 
 	protected function __checkBuffer()
 	{
-		if (!$this->ircLoggedIn) { return false; }
-		if ($this->bucketQueue !== null)
+		if (!$this->irc_logged_in) { return false; }
+		if ($this->irc_next_out !== null)
 		{
-			$Line = $this->bucketQueue;
-			$this->bucketQueue = null;
+			$Line = $this->irc_next_out;
+			$this->irc_next_out = null;
 		} else
 		{
-			foreach ($this->ircBuffers as &$buffer)
+			foreach ($this->irc_buffers as &$buffer)
 			{
 				$Line = array_shift($buffer);
 				if ($Line !== null) { break; }
@@ -519,16 +516,14 @@ class netIrc_Base extends netSocket
 			}
 		} else
 		{
-			$this->bucketWaiting = 30;
+			$this->irc_next_out_waiting = 30;
 			return false;
 		}
 	}
 
-	public function __flushBuffer() { while ($this->__checkBuffer()) { continue; } }
-
 	protected function __debug($x)
 	{
-		if (!$this->debugEnabled) { return false; }
+		if (!$this->debug_enabled) { return false; }
 		if ($this->isOpen())
 		{
 			$key = $this->netSocketIterator->key();
@@ -560,7 +555,7 @@ class netIrc_Base extends netSocket
 				}
 			}
 		}
-		unset($this->ircChannels[$Channel_key]);
+		unset($this->irc_channels[$Channel_key]);
 		$this->__deleteUsers();
 	}
 
@@ -597,7 +592,7 @@ class netIrc_Base extends netSocket
 	public function __deleteUser($_user)
 	{
 		$User = $this->getUser($_user);
-		if ($User->nick == $this->ircNick) { return; }
+		if ($User->nick == $this->irc_nickname) { return; }
 		$User_key = $this->getUser($_user,true);
 		if ($User === false) { return false; }
 
@@ -611,16 +606,16 @@ class netIrc_Base extends netSocket
 				}
 			}
 		}
-		unset($this->ircUsers[$User_key]);
+		unset($this->irc_users[$User_key]);
 	}
 
 	public function __deleteUsers()
 	{
-		foreach ($this->ircUsers as $User)
+		foreach ($this->irc_users as $User)
 		{
 			if (count($User->channels) === 0)
 			{
-				if ($User->nick != $this->ircNick) { $this->__deleteUser($User->nick); }
+				if ($User->nick != $this->irc_nickname) { $this->__deleteUser($User->nick); }
 			}
 		}
 	}
@@ -638,8 +633,9 @@ class netIrc_Base extends netSocket
 
 		if (isset($sig))
 		{
-			$this->__debug('|| INTERNAL: FATAL: Received '.$sig);
-			$this->deconnect('Received '.$sig);
+			$this->__debug('|| CORE: FATAL: Received '.$sig);
+			$this->sendQuit('Received '.$sig);
+			$this->close();
 		}
 	}
 }

@@ -35,7 +35,7 @@ class netIrc_Handlers extends netIrc_Commands
 							$mode = array_shift($modes);
 
 							if (!$prefix || !$mode) { break; }
-							$this->ircNickPrefixes[$prefix] = $mode;
+							$this->irc_nicknamePrefixes[$prefix] = $mode;
 						}
 					break;
 
@@ -46,11 +46,11 @@ class netIrc_Handlers extends netIrc_Commands
 						{
 							$prefixes = substr($p,0,strpos($p,':'));
 						}
-						$this->ircChannelPrefixes = $prefixes;
+						$this->irc_channel_prefixes = $prefixes;
 					break;
 
 					case 'CHANMODES':
-						$this->ircChannelModes = explode(',',$arg[1]);
+						$this->irc_channel_modes = explode(',',$arg[1]);
 
 					break;
 				}
@@ -144,9 +144,9 @@ class netIrc_Handlers extends netIrc_Commands
 			$_nick = '';
 			foreach ($_user_xt as $pos => $char)
 			{
-				if (isset($this->ircNickPrefixes[$char]))
+				if (isset($this->irc_nicknamePrefixes[$char]))
 				{
-					$_modes .= $this->ircNickPrefixes[$char];
+					$_modes .= $this->irc_nicknamePrefixes[$char];
 				} else {
 					$_nick = implode(array_slice($_user_xt,$pos));
 					break;
@@ -156,7 +156,7 @@ class netIrc_Handlers extends netIrc_Commands
 			$User = $this->getUser($_nick);
 			$ChannelUser = $this->getChannelUser($Line->args[1],$_nick);
 
-			if ($User === false) { $this->ircUsers[] = $User = new netIrc_User; }
+			if ($User === false) { $this->irc_users[] = $User = new netIrc_User; }
 			if ($ChannelUser === false)
 			{
 				$Channel->users[] = $ChannelUser = new netIrc_ChannelUser;
@@ -173,7 +173,7 @@ class netIrc_Handlers extends netIrc_Commands
 	{
 		$this->sendRaw('MODE '.$Line->args[0],1);
 		$this->sendRaw('WHO '.$Line->args[0],1);
-		$modes = str_split($this->ircChannelModes[0]);
+		$modes = str_split($this->irc_channel_modes[0]);
 		foreach ($modes as $m) { $this->sendRaw('MODE '.$Line->args[0].' +'.$m,1); }
 	}
 
@@ -193,21 +193,21 @@ class netIrc_Handlers extends netIrc_Commands
 
 	protected function __handle372($Line) // MOTD lines
 	{
-		$this->ircMotd[] = $Line->message;
+		$this->irc_motd[] = $Line->message;
 	}
 
 	protected function __handle375($Line) // MOTD start
 	{
-		$this->ircMotd = array();
+		$this->irc_motd = array();
 	}
 
 	protected function __handle376($Line) // MOTD end
 	{
-		$this->ircLoggedIn = true;
+		$this->irc_logged_in = true;
 		//$this->netSocket->setBlocking(0);
 
-		$this->ircUsers[] = $User = new netIrc_User;
-		$User->nick = $this->ircNick;
+		$this->irc_users[] = $User = new netIrc_User;
+		$User->nick = $this->irc_nickname;
 
 		$this->sendRaw('WHO '.$User->nick,1);
 	}
@@ -239,10 +239,10 @@ class netIrc_Handlers extends netIrc_Commands
 
 	protected function __handle433($Line) // Nickname already in use
 	{
-		if (!$this->ircLoggedIn)
+		if (!$this->irc_logged_in)
 		{
-			$this->ircNick = $this->ircNick.'`';
-			$this->sendNick($this->ircNick,0);
+			$this->irc_nickname = $this->irc_nickname.'`';
+			$this->sendNick($this->irc_nickname,0);
 		}
 	}
 
@@ -266,21 +266,24 @@ class netIrc_Handlers extends netIrc_Commands
 
 	protected function __handleERROR($Line)
 	{
-		if ($this->ircReconnect)
+		if ($this->irc_auto_reconnect)
 		{
-			if ($this->connect())
+			if ($this->open())
 			{
 				$this->listen();
 			}
+		} else
+		{
+			parent::close();
 		}
-		$this->loopBreak = true;
+		$this->loop_break = true;
 	}
 
 	protected function __handleJOIN($Line)
 	{
-		if ($Line->source->nick == $this->ircNick)
+		if ($Line->source->nick == $this->irc_nickname)
 		{
-			$this->ircChannels[] = $Channel = new netIrc_Channel;
+			$this->irc_channels[] = $Channel = new netIrc_Channel;
 			$Channel->name = $Line->message;
 		} else
 		{
@@ -290,7 +293,7 @@ class netIrc_Handlers extends netIrc_Commands
 		$User = $this->getUser($Line->source->nick);
 		if ($User === false)
 		{
-			$this->ircUsers[] = $User = new netIrc_User;
+			$this->irc_users[] = $User = new netIrc_User;
 			$User->nick = $Line->source->nick;
 			$User->ident = $Line->source->ident;
 			$User->host = $Line->source->host;
@@ -306,7 +309,7 @@ class netIrc_Handlers extends netIrc_Commands
 
 	protected function __handleKICK($Line)
 	{
-		if ($Line->args[0] == $this->ircNick)
+		if ($Line->args[0] == $this->irc_nickname)
 		{
 			$this->__deleteChannel($Line->target);
 			$this->sendJoin($Line->target);
@@ -335,13 +338,13 @@ class netIrc_Handlers extends netIrc_Commands
 					break;
 
 					default:
-						if (in_array($mode,$this->ircNickPrefixes)) // mode utilisateur préfixé
+						if (in_array($mode,$this->irc_nicknamePrefixes)) // mode utilisateur préfixé
 						{
 							$ChannelUser = $this->getChannelUser($Line->target,array_shift($Line->args));
 							$ChannelUser->modes = $this->modeChange($ChannelUser->modes,$mode,$m);
 						} else
 						{
-							foreach ($this->ircChannelModes as $k => $v)
+							foreach ($this->irc_channel_modes as $k => $v)
 							{
 								if (strpos($v,$mode) !== false) { break; }
 							}
@@ -416,7 +419,7 @@ class netIrc_Handlers extends netIrc_Commands
 
 	protected function __handleNICK($Line)
 	{
-		if ($Line->source->nick == $this->ircNick) { $this->ircNick = $Line->message; } // Own nick change
+		if ($Line->source->nick == $this->irc_nickname) { $this->irc_nickname = $Line->message; } // Own nick change
 
 		$User = $this->getUser($Line->source->nick);
 		$User->nick = $Line->message;
@@ -424,17 +427,17 @@ class netIrc_Handlers extends netIrc_Commands
 
 	protected function __handleNOTICEAUTH($Line)
 	{
-		if (!$this->ircLoginSent)
+		if (!$this->irc_login_sent)
 		{
-			$this->sendNick($this->ircNick,0);
-			$this->sendUser($this->ircIdent,$this->ircRealname);
-			$this->ircLoginSent = true;
+			$this->sendNick($this->irc_nickname,0);
+			$this->sendUser($this->irc_ident,$this->irc_realname);
+			$this->irc_login_sent = true;
 		}
 	}
 
 	protected function __handlePART($Line)
 	{
-		if ($Line->source->nick == $this->ircNick)
+		if ($Line->source->nick == $this->irc_nickname)
 		{
 			$this->__deleteChannel($Line->target);
 		} else {
