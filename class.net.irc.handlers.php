@@ -276,7 +276,7 @@ class netIrc_Handlers extends netIrc_Commands
 		{
 			parent::close();
 		}
-		$this->loop_break = true;
+		$this->irc_loop_break = true;
 	}
 
 	protected function __handleJOIN($Line)
@@ -423,16 +423,6 @@ class netIrc_Handlers extends netIrc_Commands
 
 		$User = $this->getUser($Line->source->nick);
 		$User->nick = $Line->message;
-	}
-
-	protected function __handleNOTICEAUTH($Line)
-	{
-		if (!$this->irc_login_sent)
-		{
-			$this->sendNick($this->irc_nickname,0);
-			$this->sendUser($this->irc_ident,$this->irc_realname);
-			$this->irc_login_sent = true;
-		}
 	}
 
 	protected function __handlePART($Line)

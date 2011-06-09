@@ -19,30 +19,28 @@
 class netIrc_Base extends netSocket
 {
 	// Clearbricks' netSocket
-	public $netSocketIterator = null;		# Instance of netSocketIterator
+	public $netSocketIterator = null;			# Instance of netSocketIterator
 
 	// IRC
 	protected $irc_channel_prefixes;			# Channel prefixes
-	protected $irc_channels = array();		# Channels storage
-	protected $irc_ident;					# Ident used
-	protected $irc_nickname;						# Nickname used
+	protected $irc_channels = array();			# Channels storage
+	protected $irc_ident;						# Ident used
+	protected $irc_nickname;					# Nickname used
 	protected $irc_realname;					# Realname used
-	protected $irc_users = array();			# Users storage
+	protected $irc_users = array();				# Users storage
 	protected $irc_motd;						# Server MOTD
 	protected $irc_logged_in;					# Connected or not
-	protected $irc_buffers;					# Send queues
-	protected $irc_channel_modes = array();	# Channel modes
+	protected $irc_buffers;						# Send queues
+	protected $irc_channel_modes = array();		# Channel modes
 	protected $irc_nicknamePrefixes = array();	# Nicknames prefixes
-	protected $irc_last_received_time;				# Last received time
-	protected $irc_login_sent;				# Have we send the connection infos?
-	protected $irc_auto_reconnect = true;			# Should the class automatically reconnect to IRC?
+	protected $irc_last_received_time;			# Last received time
+	protected $irc_auto_reconnect = true;		# Should the class automatically reconnect to IRC?
 
 	// Internal
-	protected $irc_event_handlers = array();		# Event handlers
-	protected $debug_enabled = true;			# Debug to stdout or not
-	protected $loop_break = false;			# Shall we exit the loop ?
+	protected $irc_event_handlers = array();	# Event handlers
+	protected $irc_debug_enabled = true;		# Debug to stdout or not
+	protected $irc_loop_break = false;			# Shall we exit the loop ?
 
-	// Bucket pacing
 	protected $irc_last_sent_time;
 	protected $irc_max_bytes = 512;
 	protected $irc_max_time = 3;
@@ -184,9 +182,18 @@ class netIrc_Base extends netSocket
 	#		CONNECTION MANAGEMENT		#
 	#####################################
 
+	public function close() {
+		$this->irc_auto_reconnect = false;
+	}
+
+	public function deconnect($quit = null)
+	{
+		$this->sendQuit($quit);
+		$this->close();
+	}
+
 	public function open() {
 		$this->irc_logged_in = false;
-		$this->irc_login_sent = false;
 		$this->irc_channels = array();
 		$this->irc_users = array();
 
@@ -200,7 +207,11 @@ class netIrc_Base extends netSocket
 			try
 			{
 				$this->netSocketIterator = parent::open();
-				if ($this->isOpen()) { break; }
+				if ($this->isOpen()) {
+					$this->sendNick($this->irc_nickname,0);
+					$this->sendUser($this->irc_ident,$this->irc_realname);
+					break;
+				}
 			} catch (Exception $e)
 			{
 				$counter++;
@@ -218,10 +229,6 @@ class netIrc_Base extends netSocket
 		}
 
 		return true;
-	}
-
-	public function close() {
-		$this->irc_auto_reconnect = false;
 	}
 
 	#########################
@@ -276,14 +283,14 @@ class netIrc_Base extends netSocket
 						}
 					}
 					$this->__debug('|| CORE: We should not reconnect, ending...');
-					$this->loop_break = true;
+					$this->irc_loop_break = true;
 				}
 			}
 
 			// Check if we should break the loop...
-			if ($this->loop_break)
+			if ($this->irc_loop_break)
 			{
-				$this->loop_break = false;
+				$this->irc_loop_break = false;
 				break;
 			}
 		}
@@ -523,7 +530,7 @@ class netIrc_Base extends netSocket
 
 	protected function __debug($x)
 	{
-		if (!$this->debug_enabled) { return false; }
+		if (!$this->irc_debug_enabled) { return false; }
 		if ($this->isOpen())
 		{
 			$key = $this->netSocketIterator->key();
@@ -634,8 +641,7 @@ class netIrc_Base extends netSocket
 		if (isset($sig))
 		{
 			$this->__debug('|| CORE: FATAL: Received '.$sig);
-			$this->sendQuit('Received '.$sig);
-			$this->close();
+			$this->deconnect('Received '.$sig);
 		}
 	}
 }
